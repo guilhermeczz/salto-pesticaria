@@ -3,7 +3,7 @@ import { Menu, X, Home, Package, Users, BarChart3, LogOut } from 'lucide-react';
 import { Link, useLocation, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import logoCompact from '@/assets/logo-compact.png';
+import logoFull from '@/assets/logo-full.png';
 
 const navItems = [
   { to: '/dashboard' as const, label: 'Início (Painel Diário)', icon: Home },
