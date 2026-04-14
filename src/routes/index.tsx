@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import logoFull from '@/assets/logo-full.png';
 
 export const Route = createFileRoute('/')({
   component: LoginPage,
@@ -15,17 +16,14 @@ function LoginPage() {
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(false);
 
-  // Login fields
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
 
-  // Register fields
   const [regName, setRegName] = useState('');
   const [regUser, setRegUser] = useState('');
   const [regPass, setRegPass] = useState('');
   const [regConfirm, setRegConfirm] = useState('');
 
-  // Redirect if already authenticated
   if (isAuthenticated) {
     navigate({ to: '/dashboard' });
     return null;
@@ -69,23 +67,17 @@ function LoginPage() {
     }
   };
 
-  const inputClass = "w-full px-4 py-3 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all";
+  const inputClass = "w-full px-4 py-3 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground text-base focus:outline-none focus:ring-2 focus:ring-primary transition-all";
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="text-center mb-8">
-          <span className="text-5xl">🍔</span>
-          <h1 className="text-2xl font-extrabold text-primary mt-2 tracking-tight">
-            Gardens Lanches
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">Gestão de Pedidos</p>
+          <img src={logoFull} alt="Gardens Lanches" className="w-40 h-40 mx-auto object-contain" width={512} height={512} />
+          <p className="text-sm text-muted-foreground mt-2">Gestão de Pedidos</p>
         </div>
 
-        {/* Card */}
         <div className="bg-card border border-border rounded-2xl p-6 shadow-lg">
-          {/* Tabs */}
           <div className="flex mb-6 bg-secondary rounded-lg p-1">
             <button
               onClick={() => setTab('login')}

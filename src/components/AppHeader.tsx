@@ -3,6 +3,7 @@ import { Menu, X, Home, Package, Users, BarChart3, LogOut } from 'lucide-react';
 import { Link, useLocation, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import logoCompact from '@/assets/logo-compact.png';
 
 const navItems = [
   { to: '/dashboard' as const, label: 'Início (Painel Diário)', icon: Home },
@@ -31,7 +32,9 @@ export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
           <button onClick={() => setDrawerOpen(true)} className="p-2 -ml-2 text-foreground">
             <Menu className="w-6 h-6" />
           </button>
-          <h1 className="text-lg font-bold text-primary tracking-tight">🍔 Gardens Lanches</h1>
+          <div className="flex items-center gap-2">
+            <img src={logoCompact} alt="Gardens Lanches" className="h-9 w-auto" />
+          </div>
           <div className="w-10" />
         </div>
         <div className="px-4 pb-3">
@@ -49,7 +52,7 @@ export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
           <div className="absolute inset-0 bg-black/60" onClick={() => setDrawerOpen(false)} />
           <nav className="relative w-72 bg-sidebar h-full flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
-              <span className="font-bold text-sidebar-primary text-lg">🍔 Gardens</span>
+              <img src={logoCompact} alt="Gardens Lanches" className="h-8 w-auto" />
               <button onClick={() => setDrawerOpen(false)} className="p-1 text-sidebar-foreground">
                 <X className="w-5 h-5" />
               </button>

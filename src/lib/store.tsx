@@ -1,18 +1,25 @@
 import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import type { Order, Product, User, OrderStatus, OrderItem } from './types';
+import type { Order, Product, User, OrderStatus, OrderItem, Category, PaymentMethod } from './types';
 
 interface AppState {
   orders: Order[];
   products: Product[];
   users: User[];
+  categories: Category[];
   orderCounter: number;
   addOrder: (customerName: string, items: OrderItem[]) => void;
+  updateOrder: (orderId: string, customerName: string, items: OrderItem[]) => void;
   moveOrder: (orderId: string, newStatus: OrderStatus) => void;
+  deleteOrder: (orderId: string) => void;
+  payOrder: (orderId: string, paymentMethod: PaymentMethod) => void;
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (id: string) => void;
   addUser: (user: Omit<User, 'id'>) => void;
   deleteUser: (id: string) => void;
+  addCategory: (category: Omit<Category, 'id'>) => void;
+  updateCategory: (category: Category) => void;
+  deleteCategory: (id: string) => void;
   getTodayOrders: () => Order[];
   getArchivedOrders: (startDate: Date, endDate: Date) => Order[];
 }
@@ -28,15 +35,21 @@ function isToday(date: Date): boolean {
   );
 }
 
+const defaultCategories: Category[] = [
+  { id: 'cat-1', name: 'Lanches', emoji: '🍔' },
+  { id: 'cat-2', name: 'Porções', emoji: '🍟' },
+  { id: 'cat-3', name: 'Bebidas', emoji: '🥤' },
+];
+
 const sampleProducts: Product[] = [
-  { id: '1', name: 'X-Bacon', price: 18.00, category: 'lanches' },
-  { id: '2', name: 'X-Tudo', price: 22.00, category: 'lanches' },
-  { id: '3', name: 'Gardens Especial', price: 25.00, category: 'lanches' },
-  { id: '4', name: 'Batata Frita', price: 15.00, category: 'porcoes' },
-  { id: '5', name: 'Onion Rings', price: 18.00, category: 'porcoes' },
-  { id: '6', name: 'Refrigerante', price: 6.00, category: 'bebidas' },
-  { id: '7', name: 'Coca-Cola', price: 7.00, category: 'bebidas' },
-  { id: '8', name: 'Suco Natural', price: 10.00, category: 'bebidas' },
+  { id: '1', name: 'X-Bacon', price: 18.00, categoryId: 'cat-1' },
+  { id: '2', name: 'X-Tudo', price: 22.00, categoryId: 'cat-1' },
+  { id: '3', name: 'Gardens Especial', price: 25.00, categoryId: 'cat-1' },
+  { id: '4', name: 'Batata Frita', price: 15.00, categoryId: 'cat-2' },
+  { id: '5', name: 'Onion Rings', price: 18.00, categoryId: 'cat-2' },
+  { id: '6', name: 'Refrigerante', price: 6.00, categoryId: 'cat-3' },
+  { id: '7', name: 'Coca-Cola', price: 7.00, categoryId: 'cat-3' },
+  { id: '8', name: 'Suco Natural', price: 10.00, categoryId: 'cat-3' },
 ];
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -45,6 +58,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([
     { id: '1', name: 'Admin', username: 'admin', password: '1234' },
   ]);
+  const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [orderCounter, setOrderCounter] = useState(1);
 
   const addOrder = useCallback((customerName: string, items: OrderItem[]) => {
@@ -62,9 +76,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOrderCounter(prev => prev + 1);
   }, [orderCounter]);
 
+  const updateOrder = useCallback((orderId: string, customerName: string, items: OrderItem[]) => {
+    const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    setOrders(prev =>
+      prev.map(o => o.id === orderId ? { ...o, customerName, items, total } : o)
+    );
+  }, []);
+
   const moveOrder = useCallback((orderId: string, newStatus: OrderStatus) => {
     setOrders(prev =>
       prev.map(o => (o.id === orderId ? { ...o, status: newStatus } : o))
+    );
+  }, []);
+
+  const deleteOrder = useCallback((orderId: string) => {
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+  }, []);
+
+  const payOrder = useCallback((orderId: string, paymentMethod: PaymentMethod) => {
+    setOrders(prev =>
+      prev.map(o => o.id === orderId ? { ...o, status: 'paid' as OrderStatus, paid: true, paymentMethod } : o)
     );
   }, []);
 
@@ -88,6 +119,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsers(prev => prev.filter(u => u.id !== id));
   }, []);
 
+  const addCategory = useCallback((category: Omit<Category, 'id'>) => {
+    setCategories(prev => [...prev, { ...category, id: crypto.randomUUID() }]);
+  }, []);
+
+  const updateCategory = useCallback((category: Category) => {
+    setCategories(prev => prev.map(c => c.id === category.id ? category : c));
+  }, []);
+
+  const deleteCategory = useCallback((id: string) => {
+    setCategories(prev => prev.filter(c => c.id !== id));
+  }, []);
+
   const getTodayOrders = useCallback(() => {
     return orders.filter(o => isToday(o.createdAt));
   }, [orders]);
@@ -102,10 +145,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider
       value={{
-        orders, products, users, orderCounter,
-        addOrder, moveOrder,
+        orders, products, users, categories, orderCounter,
+        addOrder, updateOrder, moveOrder, deleteOrder, payOrder,
         addProduct, updateProduct, deleteProduct,
         addUser, deleteUser,
+        addCategory, updateCategory, deleteCategory,
         getTodayOrders, getArchivedOrders,
       }}
     >
