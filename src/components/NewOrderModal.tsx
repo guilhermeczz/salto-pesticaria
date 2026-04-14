@@ -24,6 +24,15 @@ export function NewOrderModal({ open, onClose }: { open: boolean; onClose: () =>
     }, 0);
   }, [cart, products]);
 
+  const groupedProducts = useMemo(() => {
+    const groups: Record<string, typeof filteredProducts> = {};
+    filteredProducts.forEach(p => {
+      if (!groups[p.category]) groups[p.category] = [];
+      groups[p.category].push(p);
+    });
+    return groups;
+  }, [filteredProducts]);
+
   const updateQty = (productId: string, delta: number) => {
     setCart(prev => {
       const current = prev[productId] || 0;
@@ -76,18 +85,8 @@ export function NewOrderModal({ open, onClose }: { open: boolean; onClose: () =>
     bebidas: '🥤 Bebidas',
   };
 
-  const groupedProducts = useMemo(() => {
-    const groups: Record<string, typeof filteredProducts> = {};
-    filteredProducts.forEach(p => {
-      if (!groups[p.category]) groups[p.category] = [];
-      groups[p.category].push(p);
-    });
-    return groups;
-  }, [filteredProducts]);
-
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <h2 className="text-lg font-bold text-primary">Novo Pedido</h2>
         <button onClick={onClose} className="p-1 text-muted-foreground">
@@ -96,7 +95,6 @@ export function NewOrderModal({ open, onClose }: { open: boolean; onClose: () =>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {/* Customer name */}
         <div>
           <label className="text-sm font-medium text-muted-foreground mb-1 block">
             Cliente / Mesa *
@@ -109,7 +107,6 @@ export function NewOrderModal({ open, onClose }: { open: boolean; onClose: () =>
           />
         </div>
 
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
@@ -120,7 +117,6 @@ export function NewOrderModal({ open, onClose }: { open: boolean; onClose: () =>
           />
         </div>
 
-        {/* Products by category */}
         {Object.entries(groupedProducts).map(([cat, prods]) => (
           <div key={cat}>
             <h3 className="text-xs font-bold text-muted-foreground uppercase mb-2">
@@ -165,7 +161,6 @@ export function NewOrderModal({ open, onClose }: { open: boolean; onClose: () =>
         ))}
       </div>
 
-      {/* Footer */}
       <div className="border-t border-border px-4 py-3 space-y-2 bg-card">
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Total</span>
