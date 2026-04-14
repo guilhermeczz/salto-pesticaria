@@ -1,5 +1,7 @@
 export type OrderStatus = 'new' | 'preparing' | 'ready' | 'paid';
 
+export type PaymentMethod = 'dinheiro' | 'pix' | 'credito' | 'debito';
+
 export interface OrderItem {
   productId: string;
   productName: string;
@@ -15,15 +17,21 @@ export interface Order {
   total: number;
   status: OrderStatus;
   createdAt: Date;
+  paid?: boolean;
+  paymentMethod?: PaymentMethod;
 }
 
-export type ProductCategory = 'lanches' | 'porcoes' | 'bebidas';
+export interface Category {
+  id: string;
+  name: string;
+  emoji: string;
+}
 
 export interface Product {
   id: string;
   name: string;
   price: number;
-  category: ProductCategory;
+  categoryId: string;
 }
 
 export interface User {
