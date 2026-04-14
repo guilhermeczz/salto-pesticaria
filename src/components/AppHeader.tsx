@@ -3,7 +3,7 @@ import { Menu, X, Home, Package, Users, BarChart3, LogOut } from 'lucide-react';
 import { Link, useLocation, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import logoCompact from '@/assets/logo-compact.png';
+import logoFull from '@/assets/logo-full.png';
 
 const navItems = [
   { to: '/dashboard' as const, label: 'Início (Painel Diário)', icon: Home },
@@ -33,7 +33,7 @@ export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
             <Menu className="w-6 h-6" />
           </button>
           <div className="flex items-center gap-2">
-            <img src={logoCompact} alt="Gardens Lanches" className="h-12 w-auto" />
+            <img src={logoFull} alt="Gardens Lanches" className="h-12 w-auto" />
           </div>
           <div className="w-10" />
         </div>
@@ -52,7 +52,7 @@ export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
           <div className="absolute inset-0 bg-black/60" onClick={() => setDrawerOpen(false)} />
           <nav className="relative w-72 bg-sidebar h-full flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
-              <img src={logoCompact} alt="Gardens Lanches" className="h-8 w-auto" />
+              <img src={logoFull} alt="Gardens Lanches" className="h-8 w-auto" />
               <button onClick={() => setDrawerOpen(false)} className="p-1 text-sidebar-foreground">
                 <X className="w-5 h-5" />
               </button>
