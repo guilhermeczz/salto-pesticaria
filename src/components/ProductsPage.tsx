@@ -44,7 +44,7 @@ export function ProductsPage() {
     <div className="min-h-screen bg-background pt-14">
       <div className="px-4 py-4">
         <div className="flex items-center gap-3 mb-4">
-          <Link to="/" className="p-1 text-muted-foreground">
+          <Link to="/dashboard" className="p-1 text-muted-foreground">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <h2 className="text-lg font-bold text-foreground">Produtos</h2>

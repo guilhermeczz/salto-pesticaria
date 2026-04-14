@@ -1,6 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { AppProvider } from "@/lib/store";
+import { AuthProvider } from "@/lib/auth";
 
 import appCss from "../styles.css?url";
 
@@ -64,18 +65,20 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   return (
-    <AppProvider>
-      <Outlet />
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          style: {
-            background: 'var(--card)',
-            color: 'var(--foreground)',
-            border: '1px solid var(--border)',
-          },
-        }}
-      />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <Outlet />
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            style: {
+              background: 'var(--card)',
+              color: 'var(--foreground)',
+              border: '1px solid var(--border)',
+            },
+          }}
+        />
+      </AppProvider>
+    </AuthProvider>
   );
 }

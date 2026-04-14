@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Menu, X, Home, Package, Users, BarChart3, LogOut } from 'lucide-react';
-import { Link, useLocation } from '@tanstack/react-router';
+import { Link, useLocation, useNavigate } from '@tanstack/react-router';
+import { useAuth } from '@/lib/auth';
+import { toast } from 'sonner';
 
 const navItems = [
-  { to: '/' as const, label: 'Início (Painel Diário)', icon: Home },
+  { to: '/dashboard' as const, label: 'Início (Painel Diário)', icon: Home },
   { to: '/products' as const, label: 'Produtos', icon: Package },
   { to: '/users' as const, label: 'Usuários', icon: Users },
   { to: '/reports' as const, label: 'Relatórios & Arquivados', icon: BarChart3 },
@@ -12,6 +14,15 @@ const navItems = [
 export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    toast.success('Você saiu do sistema.');
+    navigate({ to: '/' });
+    setDrawerOpen(false);
+  };
 
   return (
     <>
@@ -33,7 +44,6 @@ export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
         </div>
       </header>
 
-      {/* Drawer overlay */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/60" onClick={() => setDrawerOpen(false)} />
@@ -47,7 +57,7 @@ export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
 
             <div className="p-4 border-b border-sidebar-border">
               <p className="text-sm text-muted-foreground">Minha Conta</p>
-              <p className="font-semibold text-sidebar-foreground">Admin</p>
+              <p className="font-semibold text-sidebar-foreground">{user?.name || 'Usuário'}</p>
             </div>
 
             <div className="flex-1 py-2">
@@ -72,7 +82,10 @@ export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
             </div>
 
             <div className="p-4 border-t border-sidebar-border">
-              <button className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
                 <LogOut className="w-5 h-5" />
                 Sair
               </button>
