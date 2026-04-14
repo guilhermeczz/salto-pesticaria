@@ -1,5 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { createFileRoute, Navigate } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
@@ -25,8 +25,7 @@ function LoginPage() {
   const [regConfirm, setRegConfirm] = useState('');
 
   if (isAuthenticated) {
-    navigate({ to: '/dashboard' });
-    return null;
+    return <Navigate to="/dashboard" />;
   }
 
   const handleLogin = async () => {
