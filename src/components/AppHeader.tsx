@@ -33,7 +33,7 @@ export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
             <Menu className="w-6 h-6" />
           </button>
           <div className="flex items-center gap-2">
-            <img src={logoCompact} alt="Gardens Lanches" className="h-9 w-auto" />
+            <img src={logoCompact} alt="Gardens Lanches" className="h-12 w-auto" />
           </div>
           <div className="w-10" />
         </div>
