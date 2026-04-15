@@ -1,3 +1,15 @@
+// @ts-ignore
+if (typeof window !== 'undefined' && !window.crypto.randomUUID) {
+  // @ts-ignore
+  window.crypto.randomUUID = function() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+}
+
 import { createFileRoute, Navigate } from '@tanstack/react-router';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -28,16 +40,20 @@ function LoginPage() {
     return <Navigate to="/dashboard" />;
   }
 
-  const handleLogin = async () => {
+ const handleLogin = async () => {
     if (!loginUser.trim() || !loginPass.trim()) {
       toast.error('Preencha todos os campos.');
       return;
     }
     setLoading(true);
     try {
-      await login(loginUser.trim(), loginPass);
-      toast.success('Bem-vindo!');
-      navigate({ to: '/dashboard' });
+      // Agora verificamos se o retorno foi verdadeiro
+      const success = await login(loginUser.trim(), loginPass);
+      
+      if (success) {
+        // Só navega se o login for real
+        navigate({ to: '/dashboard' });
+      }
     } finally {
       setLoading(false);
     }
@@ -58,14 +74,17 @@ function LoginPage() {
     }
     setLoading(true);
     try {
-      await register(regName.trim(), regUser.trim(), regPass);
-      toast.success('Conta criada com sucesso!');
-      navigate({ to: '/dashboard' });
+      const success = await register(regName.trim(), regUser.trim(), regPass);
+      
+      if (success) {
+        // Após registrar, ele já loga e navega
+        navigate({ to: '/dashboard' });
+      }
     } finally {
       setLoading(false);
     }
   };
-
+  
   const inputClass = "w-full px-4 py-3 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground text-base focus:outline-none focus:ring-2 focus:ring-primary transition-all";
 
   return (

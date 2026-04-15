@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { toast } from 'sonner';
-import { Plus, Trash2, ArrowLeft, Pencil, X } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Pencil, X, Loader2 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 
 export function ProductsPage() {
@@ -12,8 +12,15 @@ export function ProductsPage() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
-  const [categoryId, setCategoryId] = useState(categories[0]?.id || '');
+  const [categoryId, setCategoryId] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // --- CORREÇÃO: Garante que o categoryId não fique vazio ao carregar ---
+  useEffect(() => {
+    if (categories.length > 0 && !categoryId) {
+      setCategoryId(categories[0].id);
+    }
+  }, [categories, categoryId]);
 
   // Category form
   const [showCatForm, setShowCatForm] = useState(false);
@@ -22,32 +29,54 @@ export function ProductsPage() {
   const [editCatId, setEditCatId] = useState<string | null>(null);
 
   const handleSubmitProduct = async () => {
-    if (!name.trim() || !price || !categoryId) {
-      toast.error('Preencha todos os campos.');
+    // Validação rigorosa
+    if (!name.trim()) {
+      toast.error('Informe o nome do produto.');
       return;
     }
+    if (!price || parseFloat(price) <= 0) {
+      toast.error('Informe um preço válido.');
+      return;
+    }
+    if (!categoryId) {
+      toast.error('Selecione uma categoria.');
+      return;
+    }
+
     setLoading(true);
-    await new Promise(r => setTimeout(r, 200));
-    addProduct({ name: name.trim(), price: parseFloat(price), categoryId });
-    toast.success('Produto salvo!');
-    setName('');
-    setPrice('');
-    setShowForm(false);
-    setLoading(false);
+    try {
+      // Chama o store e espera o resultado real do Supabase
+      const success = await addProduct({ 
+        name: name.trim(), 
+        price: parseFloat(price), 
+        categoryId 
+      });
+
+      if (success) {
+        setName('');
+        setPrice('');
+        setShowForm(false);
+        // O toast de sucesso já vem do store.tsx
+      }
+    } catch (error) {
+      toast.error("Erro ao processar produto.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmitCategory = () => {
+  const handleSubmitCategory = async () => {
     if (!catName.trim()) {
       toast.error('Informe o nome da categoria.');
       return;
     }
+    
     if (editCatId) {
-      updateCategory({ id: editCatId, name: catName.trim(), emoji: catEmoji });
-      toast.success('Categoria atualizada!');
+      await updateCategory({ id: editCatId, name: catName.trim(), emoji: catEmoji });
     } else {
-      addCategory({ name: catName.trim(), emoji: catEmoji });
-      toast.success('Categoria criada!');
+      await addCategory({ name: catName.trim(), emoji: catEmoji });
     }
+    
     setCatName('');
     setCatEmoji('📦');
     setEditCatId(null);
@@ -63,17 +92,19 @@ export function ProductsPage() {
 
   const getCategoryLabel = (catId: string) => {
     const cat = categories.find(c => c.id === catId);
-    return cat ? `${cat.emoji} ${cat.name}` : '';
+    return cat ? `${cat.emoji} ${cat.name}` : 'Sem categoria';
   };
+
+  const inputClass = "w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground text-base focus:outline-none focus:ring-2 focus:ring-primary transition-all";
 
   return (
     <div className="min-h-screen bg-background pt-14">
-      <div className="px-4 py-4">
+      <div className="px-4 py-4 max-w-2xl mx-auto">
         <div className="flex items-center gap-3 mb-4">
-          <Link to="/dashboard" className="p-1 text-muted-foreground">
+          <Link to="/dashboard" className="p-1 text-muted-foreground hover:text-primary transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <h2 className="text-lg font-bold text-foreground">Produtos</h2>
+          <h2 className="text-lg font-bold text-foreground">Gestão do Cardápio</h2>
         </div>
 
         {/* Tabs */}
@@ -101,33 +132,34 @@ export function ProductsPage() {
             <div className="flex justify-end mb-3">
               <button
                 onClick={() => setShowForm(!showForm)}
-                className="p-2 rounded-lg bg-primary text-primary-foreground"
+                className="p-2 rounded-lg bg-primary text-primary-foreground active:scale-95 transition-transform"
               >
-                <Plus className="w-5 h-5" />
+                {showForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
               </button>
             </div>
 
             {showForm && (
-              <div className="bg-card border border-border rounded-lg p-4 mb-4 space-y-3">
+              <div className="bg-card border border-border rounded-lg p-4 mb-4 space-y-3 animate-in fade-in slide-in-from-top-2">
                 <input
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  placeholder="Nome do produto"
-                  className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Nome do lanche (ex: X-Salada)"
+                  className={inputClass}
                 />
                 <input
                   value={price}
                   onChange={e => setPrice(e.target.value)}
                   type="number"
-                  step="0.01"
-                  placeholder="Preço (R$)"
-                  className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  inputMode="decimal"
+                  placeholder="Preço R$ (ex: 20.00)"
+                  className={inputClass}
                 />
                 <select
                   value={categoryId}
                   onChange={e => setCategoryId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                  className={inputClass}
                 >
+                  <option value="" disabled>Selecione uma categoria</option>
                   {categories.map(cat => (
                     <option key={cat.id} value={cat.id}>{cat.emoji} {cat.name}</option>
                   ))}
@@ -135,24 +167,33 @@ export function ProductsPage() {
                 <button
                   onClick={handleSubmitProduct}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50"
+                  className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {loading ? 'Salvando...' : 'Salvar Produto'}
+                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {loading ? 'Salvando no Banco...' : 'Salvar Produto'}
                 </button>
               </div>
             )}
 
             <div className="space-y-2">
+              {products.length === 0 && !loading && (
+                <p className="text-center py-10 text-muted-foreground text-sm">Nenhum produto cadastrado.</p>
+              )}
               {products.map(p => (
-                <div key={p.id} className="flex items-center justify-between bg-card border border-border rounded-lg px-4 py-3">
+                <div key={p.id} className="flex items-center justify-between bg-card border border-border rounded-lg px-4 py-3 shadow-sm">
                   <div>
-                    <p className="text-sm font-semibold text-foreground">{p.name}</p>
+                    <p className="text-sm font-bold text-foreground">{p.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {getCategoryLabel(p.categoryId)} · R$ {p.price.toFixed(2)}
+                      {getCategoryLabel(p.categoryId)} · <span className="text-primary font-medium">R$ {Number(p.price).toFixed(2)}</span>
                     </p>
                   </div>
                   <button
-                    onClick={() => { deleteProduct(p.id); toast.success(`"${p.name}" removido.`); }}
+                    onClick={async () => { 
+                      if(confirm(`Deseja remover ${p.name}?`)) {
+                        await deleteProduct(p.id); 
+                        toast.success("Removido."); 
+                      }
+                    }}
                     className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -164,13 +205,14 @@ export function ProductsPage() {
         )}
 
         {activeTab === 'categories' && (
-          <>
+          // ... (mesmo código de categorias, mas garanta que o addCategory use await)
+          <div className="space-y-4">
             <div className="flex justify-end mb-3">
               <button
                 onClick={() => { setShowCatForm(!showCatForm); setEditCatId(null); setCatName(''); setCatEmoji('📦'); }}
                 className="p-2 rounded-lg bg-primary text-primary-foreground"
               >
-                <Plus className="w-5 h-5" />
+                {showCatForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
               </button>
             </div>
 
@@ -180,33 +222,22 @@ export function ProductsPage() {
                   <input
                     value={catEmoji}
                     onChange={e => setCatEmoji(e.target.value)}
-                    placeholder="Emoji"
-                    className="w-16 px-3 py-2.5 rounded-lg bg-input border border-border text-foreground text-base text-center focus:outline-none focus:ring-2 focus:ring-primary"
-                    maxLength={4}
+                    className="w-16 px-3 py-2.5 rounded-lg bg-input border border-border text-center text-xl"
+                    maxLength={2}
                   />
                   <input
                     value={catName}
                     onChange={e => setCatName(e.target.value)}
                     placeholder="Nome da categoria"
-                    className="flex-1 px-3 py-2.5 rounded-lg bg-input border border-border text-foreground placeholder:text-muted-foreground text-base focus:outline-none focus:ring-2 focus:ring-primary"
+                    className={inputClass}
                   />
                 </div>
-                <div className="flex gap-2">
-                  {editCatId && (
-                    <button
-                      onClick={() => { setShowCatForm(false); setEditCatId(null); }}
-                      className="flex-1 py-2.5 rounded-lg bg-secondary text-secondary-foreground font-bold text-sm"
-                    >
-                      Cancelar
-                    </button>
-                  )}
-                  <button
-                    onClick={handleSubmitCategory}
-                    className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground font-bold text-sm"
-                  >
-                    {editCatId ? 'Atualizar' : 'Criar Categoria'}
-                  </button>
-                </div>
+                <button
+                  onClick={handleSubmitCategory}
+                  className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-bold text-sm"
+                >
+                  {editCatId ? 'Atualizar Categoria' : 'Criar Categoria'}
+                </button>
               </div>
             )}
 
@@ -218,23 +249,13 @@ export function ProductsPage() {
                     <p className="text-sm font-semibold text-foreground">{cat.name}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => startEditCategory(cat)}
-                      className="p-2 text-muted-foreground hover:text-primary rounded-lg transition-colors"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => { deleteCategory(cat.id); toast.success(`"${cat.name}" removida.`); }}
-                      className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <button onClick={() => startEditCategory(cat)} className="p-2 text-muted-foreground"><Pencil className="w-4 h-4" /></button>
+                    <button onClick={() => deleteCategory(cat.id)} className="p-2 text-destructive"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </div>
               ))}
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
