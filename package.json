@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
-    "start": "node .output/server/index.mjs",
+    "build": "vite build && node -e \"require('fs').renameSync('dist/server', 'dist/client/_worker.js')\"",
+    "start": "node dist/client/_worker.js/index.js",
     "lint": "eslint ."
   },
   "engines": {
