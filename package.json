@@ -5,7 +5,7 @@
   "type": "module",
 "scripts": {
   "dev": "vite dev",
-  "build": "vite build && node -e \"const fs = require('fs'); fs.cpSync('dist/server', 'dist/client/_worker.js', {recursive: true});\"",
+  "build": "vite build",
   "start": "vite preview",
   "lint": "eslint ."
 },
