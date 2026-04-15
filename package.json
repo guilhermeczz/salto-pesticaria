@@ -3,9 +3,9 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
-  "scripts": {
+ "scripts": {
     "dev": "vite dev",
-    "build": "vite build && node -e \"require('fs').renameSync('dist/server', 'dist/client/_worker.js')\"",
+    "build": "vite build && node -e \"require('fs').cpSync('dist/server', 'dist/client/_worker.js', {recursive: true})\"",
     "start": "node dist/client/_worker.js/index.js",
     "lint": "eslint ."
   },
