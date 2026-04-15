@@ -4,11 +4,11 @@
   "sideEffects": false,
   "type": "module",
 "scripts": {
-    "dev": "vite dev",
-    "build": "NITRO_PRESET=cloudflare-pages vite build",
-    "start": "vite preview",
-    "lint": "eslint ."
-  },
+  "dev": "vite dev",
+  "build": "npx @tanstack/start-build",
+  "start": "vite preview",
+  "lint": "eslint ."
+},
   "engines": {
     "node": ">=22.12.0"
   },
