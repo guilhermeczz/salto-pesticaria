@@ -1,123 +1,130 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@custom-variant dark (&:is(.dark *));
-
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-ring-offset-background: var(--background);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-kanban-column: var(--kanban-column);
-  --color-kanban-column-header: var(--kanban-column-header);
-  --color-order-card: var(--order-card);
-  --color-order-card-border: var(--order-card-border);
-  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-}
-
-:root {
-  --radius: 0.75rem;
-  --background: oklch(0.18 0.01 250);
-  --foreground: oklch(0.95 0.01 250);
-  --card: oklch(0.22 0.01 250);
-  --card-foreground: oklch(0.95 0.01 250);
-  --popover: oklch(0.22 0.01 250);
-  --popover-foreground: oklch(0.95 0.01 250);
-  --primary: oklch(0.72 0.19 55);
-  --primary-foreground: oklch(0.15 0.01 250);
-  --secondary: oklch(0.28 0.01 250);
-  --secondary-foreground: oklch(0.90 0.01 250);
-  --muted: oklch(0.25 0.01 250);
-  --muted-foreground: oklch(0.65 0.01 250);
-  --accent: oklch(0.72 0.19 55);
-  --accent-foreground: oklch(0.15 0.01 250);
-  --destructive: oklch(0.58 0.24 27);
-  --destructive-foreground: oklch(0.95 0.01 250);
-  --border: oklch(0.32 0.01 250);
-  --input: oklch(0.30 0.01 250);
-  --ring: oklch(0.72 0.19 55);
-  --chart-1: oklch(0.72 0.19 55);
-  --chart-2: oklch(0.60 0.12 185);
-  --chart-3: oklch(0.40 0.07 227);
-  --chart-4: oklch(0.83 0.19 84);
-  --chart-5: oklch(0.77 0.19 70);
-  --sidebar: oklch(0.15 0.01 250);
-  --sidebar-foreground: oklch(0.95 0.01 250);
-  --sidebar-primary: oklch(0.72 0.19 55);
-  --sidebar-primary-foreground: oklch(0.15 0.01 250);
-  --sidebar-accent: oklch(0.28 0.01 250);
-  --sidebar-accent-foreground: oklch(0.95 0.01 250);
-  --sidebar-border: oklch(0.32 0.01 250);
-  --sidebar-ring: oklch(0.72 0.19 55);
-  --kanban-column: oklch(0.22 0.01 250);
-  --kanban-column-header: oklch(0.72 0.19 55);
-  --order-card: oklch(0.20 0.01 250);
-  --order-card-border: oklch(0.55 0.14 55);
+@layer base {
+  :root {
+    --background: 0 0% 4.3%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 8.2%;
+    --card-foreground: 0 0% 100%;
+    --border: 0 0% 16.5%;
+    --input: 0 0% 16.5%;
+    --ring: 25 100% 50%;
+    
+    --primary: 25 100% 50%;
+    --primary-foreground: 0 0% 0%;
+    
+    --muted: 0 0% 10.2%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --destructive: 0 100% 59.6%;
+    --destructive-foreground: 0 0% 100%;
+    --radius: 0.5rem;
+  }
 }
 
 @layer base {
   * {
-    border-color: var(--color-border);
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: Inter, system-ui, sans-serif;
+  }
+  /* Efeito global de "clique" para todos os botões do sistema */
+  button {
+    @apply transition-all duration-200 active:scale-95;
+  }
+}
+
+@layer utilities {
+  .text-primary { color: #ff6a00 !important; }
+  .bg-primary { background-color: #ff6a00 !important; color: #000000 !important; }
+  .border-primary { border-color: #ff6a00 !important; }
+  
+  /* Efeito de brilho (glow) no laranja ao passar o mouse */
+  .hover\:bg-primary\/90:hover { 
+    background-color: #e65f00 !important; 
+    box-shadow: 0 0 15px rgba(255, 106, 0, 0.4) !important;
+    transform: translateY(-2px);
+  }
+
+  /* Classes de Animação de Entrada */
+  .animate-fade-in { animation: fadeIn 0.2s ease-out; }
+  .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+  .animate-slide-right { animation: slideRight 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(-100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* =========================================
+   CONFIGURAÇÃO DE IMPRESSÃO (BOBINA 85mm)
+   ========================================= */
+@media print {
+  /* Define o tamanho exato da folha para a impressora não criar margens extras */
+  @page {
+    margin: 0;
+    size: 85mm auto;
   }
 
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    background-color: white !important;
+    color: black !important;
+    font-family: monospace, sans-serif !important;
+    margin: 0;
+    padding: 2mm; /* Pequeno respiro na lateral */
+    width: 85mm;
   }
 
-  /* Anti-zoom: force 16px minimum on all form inputs for iOS */
-  input, select, textarea {
-    font-size: 16px !important;
+  /* Oculta tudo do sistema que não deve sair no papel */
+  header, nav, button, .animate-slide-right, .shadow-xl {
+    display: none !important;
   }
-}
 
-/* Custom scrollbar for kanban */
-.kanban-scroll::-webkit-scrollbar {
-  height: 4px;
-}
-.kanban-scroll::-webkit-scrollbar-track {
-  background: var(--color-background);
-}
-.kanban-scroll::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 4px;
+  /* Força a área da nota fiscal a preencher o papel e remove bordas escuras */
+  #print-area, .print-content {
+    display: block !important;
+    width: 100% !important;
+    background: white !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: black !important;
+  }
+
+  /* Garante que o texto fique bem preto e sem coringa do Tailwind */
+  * {
+    color: black !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }

@@ -1,5 +1,5 @@
 import { createFileRoute, Navigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { NewOrderModal } from '@/components/NewOrderModal';
 import { AppHeader } from '@/components/AppHeader';
@@ -12,18 +12,32 @@ export const Route = createFileRoute('/dashboard')({
 });
 
 function DashboardPage() {
-  const { isAuthenticated, logout, user } = useAuth();
-  // 1. Puxamos os "products" também para poder achar o ID correto na hora de editar
-  const { orders, products } = useAppStore(); 
-  
+  // 1. TODOS OS HOOKS NO TOPO (A regra de ouro do React)
+  const { isAuthenticated, user } = useAuth();
+  const { products } = useAppStore();
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
 
-  // --- SEGURANÇA: Se não estiver logado, volta para o login ---
+  const initialCart = useMemo(() => {
+    if (!editOrder) return {};
+    const cart: Record<string, number> = {};
+    editOrder.items.forEach(item => {
+      if (item.productId && products.some(p => p.id === item.productId)) {
+        cart[item.productId] = item.quantity;
+      } else {
+        const fallback = products.find(p => p.name === item.productName);
+        if (fallback) cart[fallback.id] = item.quantity;
+      }
+    });
+    return cart;
+  }, [editOrder, products]);
+
+  // 2. SÓ DEPOIS DOS HOOKS VEM O "IF" DE SEGURANÇA
   if (!isAuthenticated) {
     return <Navigate to="/" />;
   }
 
+  // 3. HANDLERS
   const handleNewOrder = () => {
     setEditOrder(null);
     setOrderModalOpen(true);
@@ -39,43 +53,23 @@ function DashboardPage() {
     setEditOrder(null);
   };
 
-  // 2. A MÁGICA ACONTECE AQUI: Prepara o carrinho inicial achando o ID real do produto
-  const initialCart: Record<string, number> = {};
-  if (editOrder) {
-    editOrder.items.forEach(item => {
-      // Procura no cardápio qual é o produto que tem esse nome
-      const originalProduct = products.find(p => p.name === item.productName);
-      
-      if (originalProduct) {
-        initialCart[originalProduct.id] = item.quantity;
-      } else if (item.productId) {
-        // Fallback caso seja um produto que já foi deletado do cardápio
-        initialCart[item.productId] = item.quantity;
-      }
-    });
-  }
-
   return (
     <div className="min-h-screen bg-background">
-      <AppHeader onNewOrder={handleNewOrder} />
-      
-      <main className="pt-[120px] px-4 pb-8 max-w-7xl mx-auto">
-        <div className="flex justify-between items-end mb-6">
-          <div>
-            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
+      <div className="print:hidden">
+        <AppHeader onNewOrder={handleNewOrder} />
+      </div>
+
+      <main className="pt-[140px] px-4 md:px-6 pb-8 max-w-7xl mx-auto">
+        <div className="flex justify-between items-end mb-8 print:hidden">
+          <div className="bg-background pt-2">
+            <h2 className="text-sm font-black text-muted-foreground uppercase tracking-widest mb-1">
               Painel Diário
             </h2>
-            <p className="text-2xl font-bold text-foreground">
+            <p className="text-3xl font-bold text-foreground">
               Olá, {user?.name || 'Operador'}! 👋
             </p>
           </div>
-          
-          <div className="text-right">
-            <span className="text-xs text-muted-foreground block uppercase">Pedidos Hoje</span>
-            <span className="text-xl font-bold text-primary">{orders.length}</span>
-          </div>
         </div>
-
         <KanbanBoard onEditOrder={handleEditOrder} />
       </main>
 
@@ -85,7 +79,7 @@ function DashboardPage() {
         editOrderId={editOrder?.id}
         initialCustomerName={editOrder?.customerName}
         initialCart={initialCart}
-        initialNotes={editOrder?.notes} /* 3. Faltava essa linha para puxar a observação! */
+        initialNotes={editOrder?.notes}
       />
     </div>
   );

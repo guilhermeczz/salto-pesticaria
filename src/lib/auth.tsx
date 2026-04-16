@@ -1,4 +1,12 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  type ReactNode
+} from 'react';
+
 import { supabase } from './supabase';
 import { toast } from 'sonner';
 
@@ -22,101 +30,135 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
 
-  // --- PERSISTÊNCIA: Recupera o usuário ao abrir o site ---
+  // Função auxiliar para formatar o usuário vindo do Supabase
+  const formatUser = (supabaseUser: any): AuthUser => ({
+    id: supabaseUser.id,
+    name: supabaseUser.user_metadata?.full_name || 'Operador',
+    username: supabaseUser.user_metadata?.username || supabaseUser.email?.split('@')[0] || '',
+  });
+
+  // 🔒 VERIFICAÇÃO DE SESSÃO ATIVA
   useEffect(() => {
-    const savedUser = localStorage.getItem('gardens_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsInitializing(false);
+    const initializeAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(formatUser(session.user));
+      }
+      setIsInitializing(false);
+    };
+
+    initializeAuth();
+
+    // Escuta mudanças de estado (Login, Logout, aba fechada)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(formatUser(session.user));
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
+  // 🚪 LOGIN
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
-      // Consulta real no banco buscando nome e senha
-      const { data, error } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('username', username)
-        .eq('password', password)
-        .maybeSingle();
+      const cleanUsername = username.toLowerCase().trim();
+      const email = `${cleanUsername}@gardens.com`;
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
       if (error) {
-        console.error("Erro Supabase:", error);
-        toast.error("Erro técnico ao conectar ao banco.");
+        // Erro 400 ou 401 cai aqui
+        toast.error('Usuário ou senha inválidos.');
         return false;
       }
 
-      if (!data) {
-        toast.error("Usuário ou senha incorretos.");
-        return false;
+      if (data.user) {
+        setUser(formatUser(data.user));
+        toast.success(`Bem-vindo, ${data.user.user_metadata?.full_name || cleanUsername}!`);
       }
-
-      const userData: AuthUser = { 
-        id: data.id, 
-        name: data.nome, 
-        username: data.username 
-      };
-
-      // Salva no estado e no navegador (Persistência)
-      setUser(userData);
-      localStorage.setItem('gardens_user', JSON.stringify(userData));
       
-      toast.success(`Bem-vindo, ${data.nome}!`);
       return true;
     } catch (err) {
-      toast.error("Falha na rede ou servidor.");
+      console.error('Erro no login:', err);
+      toast.error('Erro inesperado ao conectar ao servidor.');
       return false;
     }
   }, []);
 
+  // 📝 CADASTRO (REGISTER)
   const register = useCallback(async (name: string, username: string, password: string): Promise<boolean> => {
     try {
-      // 1. Verifica se já existe esse login
-      const { data: existing } = await supabase
-        .from('usuarios')
-        .select('username')
-        .eq('username', username)
-        .maybeSingle();
-
-      if (existing) {
-        toast.error("Este nome de usuário já está em uso!");
-        return false;
-      }
-
-      // 2. Insere o novo usuário
-      const { error } = await supabase.from('usuarios').insert([{
-        nome: name,
-        username: username,
-        password: password
-      }]);
+      const cleanUsername = username.toLowerCase().trim();
+      const email = `${cleanUsername}@gardens.com`;
+      
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name.trim(),
+            username: cleanUsername,
+          }
+        }
+      });
 
       if (error) {
-        toast.error("Erro ao criar conta no banco.");
+        if (error.message.includes('already registered')) {
+          toast.error('Este nome de usuário já está em uso.');
+        } else {
+          toast.error('Erro: A senha precisa ter no mínimo 6 dígitos.');
+        }
         return false;
       }
 
-      toast.success("Conta criada! Agora faça o login.");
+      if (data.user) {
+        toast.success('Conta criada com sucesso!');
+        // O onAuthStateChange cuidará do login automático se o Supabase estiver configurado para auto-confirm
+      }
+      
       return true;
     } catch (err) {
-      toast.error("Erro ao processar cadastro.");
+      console.error('Erro no cadastro:', err);
+      toast.error('Erro inesperado no cadastro.');
       return false;
     }
   }, []);
 
-  const logout = useCallback(() => {
+  // 📤 LOGOUT
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('gardens_user');
-    toast.info("Você saiu do sistema.");
+    toast.info('Sessão encerrada.');
   }, []);
 
-  // Enquanto estiver checando o localStorage, não renderiza nada para evitar "piscada" de tela
+  // Tela de carregamento enquanto o Supabase verifica se você já está logado
   if (isInitializing) {
-    return null; 
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-primary font-medium">Iniciando sistema...</span>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated: !!user, user, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated: !!user,
+        user,
+        login,
+        register,
+        logout
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -124,6 +166,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error('useAuth deve ser usado dentro do AuthProvider');
   return ctx;
 }

@@ -15,7 +15,7 @@ export interface Order {
   items: OrderItem[];
   total: number;
   status: OrderStatus;
-  createdAt: Date; // No Store faremos o `new Date()`
+ createdAt: string | Date; // No Store faremos o `new Date()`
   notes?: string;
   paid?: boolean;
   paymentMethod?: PaymentMethod;
@@ -39,5 +39,4 @@ export interface User {
   id: string;
   name: string;
   username: string;
-  password: string;
 }
