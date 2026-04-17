@@ -1,49 +1,100 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
-import { ArrowLeft, Wallet, CheckCircle2, XCircle, AlertTriangle, FileCheck, Loader2 } from 'lucide-react';
+import { ArrowLeft, Wallet, CheckCircle2, XCircle, AlertTriangle, FileCheck, Loader2, CalendarDays, Receipt } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { toast } from 'sonner';
-// IMPORTANTE: Ajuste o caminho do supabase conforme o seu projeto
 import { supabase } from '@/lib/supabase'; 
+
+function toInputDate(d: Date) {
+  return d.toISOString().split('T')[0];
+}
 
 export function CashRegisterPage() {
   const { getArchivedOrders } = useAppStore();
   const { user } = useAuth();
   
   const [loading, setLoading] = useState(false);
-  const [closingsHistory, setClosingsHistory] = useState<any[]>([]);
   const [step, setStep] = useState<'initial' | 'difference' | 'closed'>('initial');
   const [differenceValue, setDifferenceValue] = useState('');
   const [notes, setNotes] = useState('');
+  
+  // ESTADOS DO FILTRO E HISTÓRICO
+  const [historyDate, setHistoryDate] = useState(() => toInputDate(new Date()));
+  const [dailyClosings, setDailyClosings] = useState<any[]>([]);
 
-  // Pega apenas as vendas de HOJE
-  const todayOrders = useMemo(() => {
+  // MEMÓRIA LOCAL: Guarda o milissegundo exato do fechamento no computador
+  const [lastClosingTime, setLastClosingTime] = useState<number>(() => {
+    const saved = localStorage.getItem('@gardens:lastClosure');
+    return saved ? parseInt(saved, 10) : 0;
+  });
+
+  // Busca o fechamento MAIS RECENTE do banco apenas como backup
+  const fetchLatestClosure = async () => {
+    const { data, error } = await supabase
+      .from('cash_closings')
+      .select('*')
+      .order('id', { ascending: false })
+      .limit(1);
+      
+    if (!error && data && data.length > 0) {
+      const dbDateStr = data[0].created_at;
+      if (dbDateStr) {
+        const dbTime = new Date(dbDateStr).getTime();
+        setLastClosingTime(prev => Math.max(prev, dbTime));
+      }
+    }
+  };
+
+  // Busca o histórico do dia selecionado no calendário
+  const fetchHistoryByDate = async () => {
+    const start = new Date(`${historyDate}T00:00:00`).toISOString();
+    const end = new Date(`${historyDate}T23:59:59.999`).toISOString();
+    
+    const { data, error } = await supabase
+      .from('cash_closings')
+      .select('*')
+      .gte('created_at', start)
+      .lte('created_at', end)
+      .order('id', { ascending: false });
+      
+    if (!error && data) {
+      setDailyClosings(data);
+    }
+  };
+
+  useEffect(() => {
+    fetchLatestClosure();
+  }, []);
+
+  useEffect(() => {
+    fetchHistoryByDate();
+  }, [historyDate]);
+
+  // LÓGICA DE ZERAMENTO BLINDADA
+  const unclosedOrders = useMemo(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     const end = new Date();
     end.setHours(23, 59, 59, 999);
-    return getArchivedOrders(start, end).filter(o => o.status === 'paid');
-  }, [getArchivedOrders]);
+    
+    // Pega as vendas pagas de hoje
+    let orders = getArchivedOrders(start, end).filter(o => o.status === 'paid');
+
+    // Remove qualquer venda que aconteceu ANTES do último botão de fechar caixa
+    if (lastClosingTime > 0) {
+      orders = orders.filter(o => {
+        const orderTime = new Date(o.createdAt).getTime();
+        return orderTime > lastClosingTime;
+      });
+    }
+
+    return orders;
+  }, [getArchivedOrders, lastClosingTime]);
 
   const expectedTotal = useMemo(() => {
-    return todayOrders.reduce((sum, o) => sum + o.total, 0);
-  }, [todayOrders]);
-
-  // Busca o histórico de fechamentos ao abrir a tela
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
-  const fetchHistory = async () => {
-    const { data, error } = await supabase
-      .from('cash_closings')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(5);
-    
-    if (!error && data) setClosingsHistory(data);
-  };
+    return unclosedOrders.reduce((sum, o) => sum + o.total, 0);
+  }, [unclosedOrders]);
 
   const handleCloseRegister = async (hasDifference: boolean) => {
     const diff = hasDifference ? parseFloat(differenceValue) : 0;
@@ -56,19 +107,28 @@ export function CashRegisterPage() {
 
     setLoading(true);
     try {
+      // 1. Zera a tela IMEDIATAMENTE e grava no navegador
+      const now = Date.now();
+      localStorage.setItem('@gardens:lastClosure', now.toString());
+      setLastClosingTime(now);
+      setStep('closed');
+
+      // 2. Salva no banco de dados
       const { error } = await supabase.from('cash_closings').insert([{
         expected_total: expectedTotal,
         difference: diff,
         reported_total: reportedTotal,
         operator_name: user?.name || 'Operador',
-        notes: notes || (diff === 0 ? 'Fechamento exato.' : 'Fechamento com divergência.')
+        notes: notes || (diff === 0 ? 'Fechamento exato.' : 'Fechamento com divergência.'),
+        closing_date: toInputDate(new Date()) // Alimenta a coluna 'closing_date' do seu banco
       }]);
 
       if (error) throw error;
 
       toast.success('Caixa fechado com sucesso!');
-      setStep('closed');
-      fetchHistory(); // Atualiza a lista embaixo
+      
+      // 3. Atualiza a lista do calendário
+      fetchHistoryByDate();
     } catch (err) {
       console.error(err);
       toast.error('Erro ao fechar o caixa.');
@@ -77,7 +137,7 @@ export function CashRegisterPage() {
     }
   };
 
-  const inputClass = "w-full px-4 py-3.5 rounded-xl bg-[#111] text-white border border-gray-800 focus:outline-none focus:border-primary focus:shadow-[0_0_15px_rgba(255,106,0,0.3)] transition-all font-bold";
+  const inputClass = "w-full px-4 py-3.5 rounded-xl bg-[#111] text-white border border-gray-800 focus:outline-none focus:border-primary focus:shadow-[0_0_15px_rgba(255,106,0,0.3)] transition-all font-bold [color-scheme:dark]";
 
   return (
     <div className="min-h-screen bg-background pt-8 pb-20">
@@ -93,13 +153,13 @@ export function CashRegisterPage() {
           </h2>
         </div>
 
-        {/* ÁREA DE FECHAMENTO (O DIA DE HOJE) */}
+        {/* ÁREA DE FECHAMENTO (CAIXA ATUAL) */}
         <div className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-lg mb-8 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
           
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <div>
-              <p className="text-sm font-black text-muted-foreground uppercase tracking-widest mb-1">Resumo de Hoje</p>
+              <p className="text-sm font-black text-muted-foreground uppercase tracking-widest mb-1">Resumo do Turno Atual</p>
               <h3 className="text-2xl font-black text-foreground">
                 {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
               </h3>
@@ -112,18 +172,36 @@ export function CashRegisterPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div className="bg-[#111] border border-gray-800 rounded-2xl p-6 shadow-inner">
-              <p className="text-sm font-bold text-gray-400 mb-1">Qtd. Vendas (Pagas)</p>
-              <p className="text-4xl font-black text-white">{todayOrders.length}</p>
+              <p className="text-sm font-bold text-gray-400 mb-1">Novas Vendas (Após último fechamento)</p>
+              <p className="text-4xl font-black text-white">{unclosedOrders.length}</p>
             </div>
             <div className="bg-primary/10 border border-primary/30 rounded-2xl p-6 shadow-inner relative overflow-hidden group">
               <Wallet className="absolute -right-4 -bottom-4 w-24 h-24 opacity-10 group-hover:scale-110 transition-transform" />
-              <p className="text-sm font-bold text-primary mb-1">Faturamento no Sistema</p>
+              <p className="text-sm font-bold text-primary mb-1">Faturamento Pendente</p>
               <p className="text-4xl font-black text-foreground">R$ {expectedTotal.toFixed(2)}</p>
             </div>
           </div>
 
-          {/* FLUXO DE CONFIRMAÇÃO */}
-          {step === 'initial' && (
+          {/* FLUXO DE CONFIRMAÇÃO INTELIGENTE */}
+          {step === 'closed' ? (
+            <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-8 text-center animate-slide-up">
+              <FileCheck className="w-16 h-16 text-green-500 mx-auto mb-4" />
+              <h4 className="text-2xl font-black text-green-500 mb-2">Caixa Fechado!</h4>
+              <p className="text-muted-foreground">O fechamento deste turno foi salvo no sistema.</p>
+              <button 
+                onClick={() => { setStep('initial'); setDifferenceValue(''); setNotes(''); }}
+                className="mt-6 px-6 py-3 bg-background border border-border hover:border-primary text-foreground rounded-xl font-bold transition-all"
+              >
+                Iniciar Novo Turno
+              </button>
+            </div>
+          ) : unclosedOrders.length === 0 && expectedTotal === 0 ? (
+            <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-8 text-center animate-fade-in">
+              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
+              <h4 className="text-2xl font-black text-green-500 mb-2">Caixa Zerado!</h4>
+              <p className="text-green-500/80 font-medium">Não há novas vendas aguardando fechamento.</p>
+            </div>
+          ) : step === 'initial' ? (
             <div className="bg-background border border-border rounded-2xl p-6 text-center animate-fade-in">
               <h4 className="text-xl font-black text-foreground mb-2">O valor total em caixa está correto?</h4>
               <p className="text-muted-foreground text-sm mb-6">Confira a gaveta de dinheiro e as maquininhas antes de confirmar.</p>
@@ -144,9 +222,7 @@ export function CashRegisterPage() {
                 </button>
               </div>
             </div>
-          )}
-
-          {step === 'difference' && (
+          ) : step === 'difference' ? (
             <div className="bg-background border border-red-500/30 rounded-2xl p-6 animate-slide-up">
               <div className="flex items-center gap-3 mb-6 text-red-500">
                 <AlertTriangle className="w-6 h-6" />
@@ -192,62 +268,101 @@ export function CashRegisterPage() {
                 </button>
               </div>
             </div>
-          )}
-
-          {step === 'closed' && (
-            <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-8 text-center animate-slide-up">
-              <FileCheck className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h4 className="text-2xl font-black text-green-500 mb-2">Caixa Fechado!</h4>
-              <p className="text-muted-foreground">O fechamento deste dia foi salvo no sistema.</p>
-              <button 
-                onClick={() => setStep('initial')}
-                className="mt-6 px-6 py-3 bg-background border border-border hover:border-primary text-foreground rounded-xl font-bold transition-all"
-              >
-                Fazer novo registro
-              </button>
-            </div>
-          )}
+          ) : null}
         </div>
 
-        {/* HISTÓRICO DE FECHAMENTOS (Últimos 5) */}
-        <h3 className="font-black text-foreground mb-4 text-xl mt-10">Últimos Fechamentos</h3>
+        {/* LISTA DE AUDITORIA PROTEGIDA */}
+        {unclosedOrders.length > 0 && (
+          <div className="mb-12 animate-fade-in">
+            <h3 className="font-black text-foreground mb-4 text-xl flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-primary" /> Auditoria de Vendas Pendentes 
+              <span className="text-sm bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{unclosedOrders.length}</span>
+            </h3>
+            <div className="space-y-3">
+              {unclosedOrders.map((order, idx) => (
+                <div key={idx} className="bg-card border border-border rounded-xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <span className="font-black text-muted-foreground text-sm">#{String(order.number).padStart(4, '0')}</span>
+                      <span className="font-bold text-foreground">{order.customerName}</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                        {new Date(order.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground italic mt-1">
+                      {order.items.map(i => `${i.quantity}x ${i.productName}`).join(', ')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4 text-right">
+                    <span className="text-[10px] font-black uppercase text-gray-500">{order.paymentMethod}</span>
+                    <span className="font-black text-lg bg-[#111] px-3 py-1.5 rounded-lg border border-gray-800">
+                      R$ {order.total.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 👇 O NOVO CALENDÁRIO ESTÁ AQUI 👇 */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 mt-12 border-t border-border pt-8">
+          <h3 className="font-black text-foreground text-xl">Histórico de Fechamentos</h3>
+          
+          <div className="flex items-center gap-2 bg-[#111] border border-gray-800 rounded-xl px-4 py-2 shadow-sm focus-within:border-primary transition-colors cursor-pointer group hover:border-primary/50">
+            <CalendarDays className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+            <input 
+              type="date" 
+              value={historyDate} 
+              onChange={e => setHistoryDate(e.target.value)}
+              className="bg-transparent text-sm font-bold text-white focus:outline-none [color-scheme:dark] cursor-pointer"
+            />
+          </div>
+        </div>
+
         <div className="space-y-3">
-          {closingsHistory.length === 0 && (
-            <p className="text-center py-8 text-muted-foreground bg-card rounded-xl border border-dashed border-border font-medium">
-              Nenhum fechamento registrado ainda.
+          {dailyClosings.length === 0 && (
+            <p className="text-center py-10 text-muted-foreground bg-card rounded-2xl border border-dashed border-border font-medium shadow-sm">
+              Nenhum fechamento registrado na data <span className="font-bold">{new Date(`${historyDate}T12:00:00`).toLocaleDateString('pt-BR')}</span>.
             </p>
           )}
-          {closingsHistory.map(closing => (
-            <div key={closing.id} className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-primary/50 transition-all">
-              <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="font-black text-foreground text-lg">
-                    {new Date(closing.closing_date).toLocaleDateString('pt-BR')}
-                  </span>
-                  {closing.difference === 0 ? (
-                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">Exato</span>
-                  ) : (
-                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">Divergência</span>
-                  )}
+          
+          {dailyClosings.map(closing => {
+             const rawDate = closing.created_at || closing.closing_date;
+             const dateText = rawDate 
+               ? new Date(rawDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+               : 'Data Indisponível';
+
+             return (
+              <div key={closing.id} className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-primary/50 transition-all">
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="font-black text-foreground text-lg">{dateText}</span>
+                    {closing.difference === 0 ? (
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">Exato</span>
+                    ) : (
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">Divergência</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Operador: <span className="font-bold">{closing.operator_name}</span></p>
+                  {closing.notes && <p className="text-xs mt-1 italic text-muted-foreground/70 border-l-2 border-border pl-2">{closing.notes}</p>}
                 </div>
-                <p className="text-sm text-muted-foreground">Operador: <span className="font-bold">{closing.operator_name}</span></p>
-                {closing.notes && <p className="text-xs mt-1 italic text-muted-foreground/70 border-l-2 border-border pl-2">{closing.notes}</p>}
+                
+                <div className="flex gap-6 bg-[#111] p-3 rounded-xl border border-gray-800 shadow-inner">
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Sistema</p>
+                    <p className="font-bold text-foreground">R$ {closing.expected_total.toFixed(2)}</p>
+                  </div>
+                  <div className="text-right border-l border-gray-800 pl-6">
+                    <p className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Declarado</p>
+                    <p className={`font-black ${closing.difference < 0 ? 'text-red-500' : closing.difference > 0 ? 'text-green-500' : 'text-primary'}`}>
+                      R$ {closing.reported_total.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
               </div>
-              
-              <div className="flex gap-6 bg-[#111] p-3 rounded-xl border border-gray-800">
-                <div className="text-right">
-                  <p className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Sistema</p>
-                  <p className="font-bold text-foreground">R$ {closing.expected_total.toFixed(2)}</p>
-                </div>
-                <div className="text-right border-l border-gray-800 pl-6">
-                  <p className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Declarado</p>
-                  <p className={`font-black ${closing.difference < 0 ? 'text-red-500' : closing.difference > 0 ? 'text-green-500' : 'text-primary'}`}>
-                    R$ {closing.reported_total.toFixed(2)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
       </div>
