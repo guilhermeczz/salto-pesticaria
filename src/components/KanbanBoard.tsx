@@ -162,16 +162,58 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
         </div>
       )}
 
+      {/* MODAL DE PAGAMENTO ATUALIZADO */}
       {payTarget && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[999] print:hidden">
-          <div style={{ backgroundColor: '#111', color: '#fff' }} className="p-8 rounded-2xl shadow-2xl max-w-sm w-full mx-4 border border-gray-800">
-            <h3 className="text-xl font-bold text-center mb-6">Forma de Pagamento</h3>
-            <div className="flex flex-col gap-3">
-              {['Pix', 'Cartão', 'Dinheiro'].map((method) => (
-                <button key={method} onClick={() => { payOrder(payTarget.id, method as any); setPayTarget(null); }} className="py-3 bg-gray-800 hover:bg-orange-500 hover:text-white rounded-xl font-bold transition-all text-lg">{method}</button>
-              ))}
+          <div style={{ backgroundColor: '#111', color: '#fff' }} className="p-8 rounded-3xl shadow-[0_0_50px_rgba(255,106,0,0.15)] max-w-sm w-full mx-4 border border-gray-800 animate-slide-up">
+            
+            <div className="flex flex-col items-center mb-6 border-b border-gray-800 pb-6">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4 border border-primary/20">
+                <CreditCard className="w-8 h-8 text-primary" />
+              </div>
+              <h3 className="text-xl font-black text-center mb-1">Cobrar Pedido</h3>
+              <p className="text-muted-foreground text-sm">Selecione a forma de pagamento</p>
+              <p className="text-3xl font-black text-white mt-4 tracking-tight">
+                R$ {payTarget.total.toFixed(2)}
+              </p>
             </div>
-            <button className="w-full mt-6 py-3 text-gray-400 hover:text-white font-bold transition-all" onClick={() => setPayTarget(null)}>Cancelar</button>
+
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <button 
+                onClick={() => { payOrder(payTarget.id, 'dinheiro'); setPayTarget(null); }} 
+                className="py-4 flex flex-col items-center justify-center gap-2 bg-gray-900 border border-gray-800 hover:border-green-500/50 hover:bg-green-500/10 hover:text-green-500 rounded-2xl font-black transition-all group"
+              >
+                Dinheiro
+              </button>
+              
+              <button 
+                onClick={() => { payOrder(payTarget.id, 'pix'); setPayTarget(null); }} 
+                className="py-4 flex flex-col items-center justify-center gap-2 bg-gray-900 border border-gray-800 hover:border-teal-500/50 hover:bg-teal-500/10 hover:text-teal-500 rounded-2xl font-black transition-all"
+              >
+                PIX
+              </button>
+
+              <button 
+                onClick={() => { payOrder(payTarget.id, 'credito'); setPayTarget(null); }} 
+                className="py-4 flex flex-col items-center justify-center gap-2 bg-gray-900 border border-gray-800 hover:border-blue-500/50 hover:bg-blue-500/10 hover:text-blue-500 rounded-2xl font-black transition-all"
+              >
+                Crédito
+              </button>
+
+              <button 
+                onClick={() => { payOrder(payTarget.id, 'debito'); setPayTarget(null); }} 
+                className="py-4 flex flex-col items-center justify-center gap-2 bg-gray-900 border border-gray-800 hover:border-purple-500/50 hover:bg-purple-500/10 hover:text-purple-500 rounded-2xl font-black transition-all"
+              >
+                Débito
+              </button>
+            </div>
+
+            <button 
+              className="w-full py-4 text-gray-500 hover:bg-gray-800 hover:text-white rounded-xl font-bold transition-all" 
+              onClick={() => setPayTarget(null)}
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}

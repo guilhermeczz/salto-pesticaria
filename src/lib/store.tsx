@@ -63,7 +63,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Produtos
       const { data: prodData } = await supabase.from('produtos').select('*');
       if (prodData) setProducts(prodData.map((p: any) => ({ 
-        id: p.id, name: p.nome, price: Number(p.preco), categoryId: p.categoria_id 
+        id: p.id, name: p.nome, price: Number(p.preco), categoryId: p.categoria_id,
+        active: p.ativo
       })));
 
       // Chamamos a nossa nova função de usuários
@@ -154,7 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateProduct = useCallback(async (product: Product) => {
     await supabase.from('produtos').update({ 
-      nome: product.name, preco: product.price, categoria_id: product.categoryId 
+      nome: product.name, preco: product.price, categoria_id: product.categoryId,
     }).eq('id', product.id);
     fetchData();
     toast.success("Produto atualizado!");

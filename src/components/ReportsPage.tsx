@@ -1,8 +1,14 @@
 import { useState, useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
-import { ArrowLeft, CalendarDays, TrendingUp, Receipt, LineChart, Store } from 'lucide-react';
+import { ArrowLeft, CalendarDays, TrendingUp, Receipt, LineChart, Store, Download } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
+import { toast } from 'sonner';
 
+// Importando as bibliotecas de PDF
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+// Funções utilitárias para formatar datas nos inputs e textos
 function formatDate(d: Date) {
   return d.toLocaleDateString('pt-BR');
 }
@@ -13,6 +19,7 @@ function toInputDate(d: Date) {
 
 export function ReportsPage() {
   const { getArchivedOrders } = useAppStore();
+  
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
@@ -20,14 +27,12 @@ export function ReportsPage() {
   });
   const [endDate, setEndDate] = useState(() => toInputDate(new Date()));
 
-  // Pega os pedidos do período
   const orders = useMemo(() => {
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T23:59:59');
     return getArchivedOrders(start, end);
   }, [startDate, endDate, getArchivedOrders]);
 
-  // Cálculos de KPI
   const paidOrders = useMemo(() => orders.filter(o => o.status === 'paid'), [orders]);
   
   const totalRevenue = useMemo(() => {
@@ -36,22 +41,80 @@ export function ReportsPage() {
 
   const ticketMedio = paidOrders.length > 0 ? totalRevenue / paidOrders.length : 0;
 
-  // Gerar dados para o Gráfico de Barras CSS
   const chartData = useMemo(() => {
     const dailyMap: Record<string, number> = {};
     paidOrders.forEach(o => {
-      const d = new Date(o.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const dateObj = new Date(o.createdAt);
+      const d = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
       dailyMap[d] = (dailyMap[d] || 0) + o.total;
     });
-    
+    if (Object.keys(dailyMap).length === 0) return [];
     const data = Object.entries(dailyMap).map(([date, total]) => ({ date, total }));
-    // Pega os últimos 7 dias com venda para não espremer o gráfico
     return data.slice(-7); 
   }, [paidOrders]);
 
-  const maxDailyRevenue = Math.max(...chartData.map(d => d.total), 1); // Evita divisão por zero
+  const maxDailyRevenue = Math.max(...chartData.map(d => d.total), 1); 
 
-  // 👇 CORREÇÃO DEFINITIVA: Fundo chumbado, texto branco e calendário em modo noturno nativo 👇
+  // 👇 MÁGICA DO PDF: Função que desenha e baixa o relatório
+  const handleDownloadPDF = () => {
+    if (paidOrders.length === 0) {
+      return toast.error("Não há vendas neste período para gerar PDF.");
+    }
+
+    // Cria o documento em formato A4, Retrato
+    const doc = new jsPDF();
+
+    // Cabeçalho do PDF
+    doc.setFontSize(22);
+    doc.setTextColor(255, 106, 0); // Cor Laranja do Gardens
+    doc.text('GARDENS LANCHES', 14, 20);
+    
+    doc.setFontSize(14);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Relatório Detalhado de Faturamento', 14, 28);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Período analisado: ${formatDate(new Date(startDate))} até ${formatDate(new Date(endDate))}`, 14, 34);
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 39);
+
+    // Resumo Financeiro no PDF
+    doc.setDrawColor(200, 200, 200);
+    doc.rect(14, 45, 182, 22); // Caixinha do resumo
+    
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Faturamento Total: R$ ${totalRevenue.toFixed(2)}`, 18, 52);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Total de Pedidos Pagos: ${paidOrders.length}`, 18, 58);
+    doc.text(`Ticket Médio: R$ ${ticketMedio.toFixed(2)}`, 18, 64);
+
+    // Mapeando os dados para a Tabela
+    const tableData = paidOrders.map(order => [
+      `#${String(order.number).padStart(4, '0')}`,
+      new Date(order.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
+      order.customerName,
+      String(order.paymentMethod || 'Não def.').toUpperCase(),
+      `R$ ${order.total.toFixed(2)}`
+    ]);
+
+    // Desenhando a Tabela
+    autoTable(doc, {
+      startY: 75,
+      head: [['Pedido', 'Data / Hora', 'Cliente', 'Pagamento', 'Valor Total']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [255, 106, 0], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 3 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+
+    // Baixa o arquivo automaticamente
+    doc.save(`Relatorio_Gardens_${startDate}_a_${endDate}.pdf`);
+    toast.success("Download do PDF iniciado!");
+  };
+
   const inputClass = "w-full px-4 py-3.5 rounded-xl bg-[#111] text-white border border-gray-800 focus:outline-none focus:border-primary focus:shadow-[0_0_15px_rgba(255,106,0,0.3)] transition-all font-bold [color-scheme:dark]";
 
   return (
@@ -59,13 +122,25 @@ export function ReportsPage() {
       <div className="max-w-5xl mx-auto px-6 animate-fade-in">
         
         {/* CABEÇALHO */}
-        <div className="flex items-center gap-4 mb-8 border-b border-border pb-4">
-          <Link to="/dashboard" className="p-2.5 bg-card border border-border rounded-xl text-muted-foreground hover:text-primary hover:border-primary transition-all active:scale-95 shadow-sm hover:-translate-x-1">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <h2 className="text-3xl font-black text-primary drop-shadow-sm flex items-center gap-3">
-            <LineChart className="w-8 h-8" /> Visão Geral e Faturamento
-          </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 border-b border-border pb-4">
+          <div className="flex items-center gap-4">
+            <Link to="/dashboard" className="p-2.5 bg-card border border-border rounded-xl text-muted-foreground hover:text-primary hover:border-primary transition-all active:scale-95 shadow-sm hover:-translate-x-1">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <h2 className="text-3xl font-black text-primary drop-shadow-sm flex items-center gap-3">
+              <LineChart className="w-8 h-8" /> Visão Geral e Faturamento
+            </h2>
+          </div>
+          
+          {/* 👇 BOTÃO DE DOWNLOAD DO PDF 👇 */}
+          <button 
+            onClick={handleDownloadPDF}
+            disabled={totalRevenue === 0}
+            className="flex items-center gap-2 px-5 py-2.5 bg-background border border-border hover:border-primary hover:text-primary text-foreground rounded-xl font-bold transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          >
+            <Download className="w-5 h-5" />
+            Exportar PDF
+          </button>
         </div>
 
         {/* FILTROS DE DATA */}
@@ -84,7 +159,6 @@ export function ReportsPage() {
           </div>
         </div>
 
-        {/* MÁGICA VISUAL: SE NÃO TIVER VENDA, MOSTRA O AVISO. SE TIVER, MOSTRA OS DADOS */}
         {totalRevenue === 0 ? (
           <div className="bg-card border border-border rounded-3xl p-12 flex flex-col items-center justify-center text-center shadow-lg animate-slide-up mt-4">
             <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-6">
@@ -116,7 +190,6 @@ export function ReportsPage() {
                 </p>
               </div>
 
-              {/* Quantidade de Pedidos */}
               <div className="bg-card border border-border rounded-3xl p-6 shadow-sm flex flex-col justify-center hover:border-primary/30 transition-colors">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="p-2.5 bg-primary/10 text-primary rounded-xl"><Receipt className="w-5 h-5" /></div>
@@ -125,7 +198,6 @@ export function ReportsPage() {
                 <p className="text-4xl font-black text-foreground tracking-tight">{paidOrders.length}</p>
               </div>
 
-              {/* Ticket Médio */}
               <div className="bg-card border border-border rounded-3xl p-6 shadow-sm flex flex-col justify-center hover:border-green-500/30 transition-colors">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="p-2.5 bg-green-500/10 text-green-500 rounded-xl"><TrendingUp className="w-5 h-5" /></div>
@@ -135,33 +207,33 @@ export function ReportsPage() {
               </div>
             </div>
 
-            {/* GRÁFICO DE BARRAS CSS */}
+            {/* GRÁFICO DE BARRAS */}
             {chartData.length > 0 && (
               <div className="bg-card border border-border rounded-3xl p-6 shadow-sm mb-8">
                 <h3 className="font-black text-muted-foreground mb-8 uppercase tracking-widest text-xs flex items-center gap-2">
-                  <LineChart className="w-4 h-4 text-primary" /> Desempenho por Dia (Últimos 7)
+                  <LineChart className="w-4 h-4 text-primary" /> Desempenho por Dia
                 </h3>
-                <div className="flex items-end justify-around h-56 gap-3 pt-4 border-b border-border/50 pb-2 relative">
-                  {/* Linhas de grade sutis no fundo */}
-                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-10">
+                
+                <div className="flex items-end justify-around h-64 gap-3 pt-4 border-b border-border/50 pb-2 relative">
+                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-10 pb-8">
+                    <div className="border-t border-foreground w-full"></div>
                     <div className="border-t border-foreground w-full"></div>
                     <div className="border-t border-foreground w-full"></div>
                     <div className="border-t border-foreground w-full"></div>
                   </div>
 
                   {chartData.map((data, index) => {
-                    const heightPercent = (data.total / maxDailyRevenue) * 100;
+                    const heightPercent = chartData.length === 1 ? 85 : (data.total / maxDailyRevenue) * 85;
                     return (
-                      <div key={index} className="flex flex-col items-center flex-1 group z-10">
-                        {/* Tooltip de valor */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:-translate-y-1 bg-black border border-gray-800 text-white text-xs font-bold py-1.5 px-3 rounded-lg mb-2 whitespace-nowrap shadow-xl">
-                          R$ {data.total.toFixed(2)}
-                        </div>
-                        {/* Barra Brilhante */}
+                      <div key={index} className="h-full flex flex-col items-center justify-end flex-1 group z-10">
                         <div 
-                          className="w-full max-w-[48px] bg-primary rounded-t-lg transition-all duration-700 shadow-[0_0_10px_rgba(255,106,0,0.2)] group-hover:shadow-[0_0_15px_rgba(255,106,0,0.5)] group-hover:brightness-110"
-                          style={{ height: `${Math.max(heightPercent, 5)}%` }}
-                        ></div>
+                          className="w-full max-w-[60px] bg-primary rounded-t-lg transition-all duration-700 shadow-[0_0_10px_rgba(255,106,0,0.2)] group-hover:shadow-[0_0_15px_rgba(255,106,0,0.5)] group-hover:brightness-110 relative flex justify-center"
+                          style={{ height: `${Math.max(heightPercent, 5)}%` }} 
+                        >
+                          <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:-translate-y-1 bg-black border border-gray-800 text-white text-xs font-bold py-1.5 px-3 rounded-lg whitespace-nowrap shadow-xl pointer-events-none z-50">
+                            R$ {data.total.toFixed(2)}
+                          </div>
+                        </div>
                         <span className="text-[11px] font-bold text-muted-foreground mt-3">{data.date}</span>
                       </div>
                     );
@@ -170,7 +242,7 @@ export function ReportsPage() {
               </div>
             )}
 
-            {/* LISTA DE PEDIDOS ARQUIVADOS */}
+            {/* LISTA DE PEDIDOS */}
             <h3 className="font-black text-foreground mb-4 text-xl flex items-center gap-2 mt-10">
               Histórico de Pedidos <span className="text-sm bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{orders.length}</span>
             </h3>

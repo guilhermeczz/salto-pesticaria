@@ -2,10 +2,8 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
-import { ArrowLeft, Wallet, CheckCircle2, XCircle, AlertTriangle, FileCheck, Loader2, Receipt } from 'lucide-react';
+import { ArrowLeft, Wallet, CheckCircle2, XCircle, AlertTriangle, FileCheck, Loader2, Receipt, Banknote, DollarSign, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
-
-// IMPORTANTE: Ajuste o caminho se necessário
 import { supabase } from '@/lib/supabase';
 
 export const Route = createFileRoute('/cash-register')({
@@ -35,11 +33,34 @@ function CashRegisterPage() {
     return todayOrders.reduce((sum: number, o: any) => sum + o.total, 0);
   }, [todayOrders]);
 
-  // Busca o histórico de fechamentos ao abrir a tela
-  useEffect(() => {
-    fetchHistory();
-  }, []);
+  // 👇 NOVO: Calcula os totais separados por forma de pagamento
+ // 👇 CÁLCULO CORRIGIDO: À prova de maiúsculas, minúsculas e acentos
+  const stats = useMemo(() => {
+    const totals = { pix: 0, dinheiro: 0, credito: 0, debito: 0 };
+    
+    todayOrders.forEach((o: any) => {
+      const valor = o.total || 0;
+      
+      // Pega o nome do pagamento, transforma tudo em minúsculo e tira os espaços
+      const method = String(o.paymentMethod || '').toLowerCase().trim();
 
+      if (method === 'pix') {
+        totals.pix += valor;
+      } else if (method === 'dinheiro') {
+        totals.dinheiro += valor;
+      } else if (method.includes('credito') || method.includes('crédito')) {
+        totals.credito += valor;
+      } else if (method.includes('debito') || method.includes('débito')) {
+        totals.debito += valor;
+      } else if (method === 'cartão' || method === 'cartao') {
+        // Caso o sistema salve apenas como "Cartão", ele joga na caixinha de crédito
+        totals.credito += valor;
+      }
+    });
+    
+    return totals;
+  }, [todayOrders]);
+  
   const fetchHistory = async () => {
     const { data, error } = await supabase
       .from('cash_closings')
@@ -113,6 +134,14 @@ function CashRegisterPage() {
               <p className="text-[10px] font-black text-muted-foreground mb-0.5 uppercase tracking-wider text-center">Operador do Caixa</p>
               <p className="font-black text-primary text-center">{user?.name || 'Usuário Logado'}</p>
             </div>
+          </div>
+
+          {/* 👇 NOVO: Caixinhas de Métodos de Pagamento (Teste 5.1) 👇 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <StatCard label="Dinheiro" value={stats.dinheiro} icon={<Banknote className="w-4 h-4"/>} color="text-green-500" />
+            <StatCard label="PIX" value={stats.pix} icon={<DollarSign className="w-4 h-4"/>} color="text-teal-500" />
+            <StatCard label="Crédito" value={stats.credito} icon={<CreditCard className="w-4 h-4"/>} color="text-blue-500" />
+            <StatCard label="Débito" value={stats.debito} icon={<CreditCard className="w-4 h-4"/>} color="text-purple-500" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -218,7 +247,7 @@ function CashRegisterPage() {
           )}
         </div>
 
-        {/* 👇 NOVA SEÇÃO: LISTA DE VENDAS DE HOJE PARA CONFERÊNCIA 👇 */}
+        {/* AUDITORIA DE VENDAS */}
         <div className="mb-10">
           <h3 className="font-black text-foreground mb-4 text-lg flex items-center gap-2">
             <Receipt className="w-5 h-5 text-muted-foreground" /> 
@@ -249,7 +278,11 @@ function CashRegisterPage() {
                         {order.items.map((i: any) => `${i.quantity}x ${i.productName}`).join(', ')}
                       </p>
                     </div>
-                    <div className="text-left sm:text-right">
+                    <div className="text-left sm:text-right flex items-center gap-3">
+                      {/* Badge do método de pagamento */}
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                        {order.paymentMethod || 'Não def.'}
+                      </span>
                       <span className="font-black text-sm text-foreground bg-background px-2.5 py-1 rounded-lg border border-border">
                         R$ {order.total.toFixed(2)}
                       </span>
@@ -261,7 +294,7 @@ function CashRegisterPage() {
           </div>
         </div>
 
-        {/* HISTÓRICO DE FECHAMENTOS (Últimos 5) */}
+        {/* HISTÓRICO DE FECHAMENTOS */}
         <h3 className="font-black text-foreground mb-4 text-xl mt-10">Últimos Fechamentos</h3>
         <div className="space-y-3">
           {closingsHistory.length === 0 && (
@@ -274,7 +307,7 @@ function CashRegisterPage() {
               <div>
                 <div className="flex items-center gap-3 mb-1">
                   <span className="font-black text-foreground text-lg">
-                    {new Date(closing.closing_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                    {new Date(closing.created_at).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                   </span>
                   {closing.difference === 0 ? (
                     <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">Exato</span>
@@ -302,6 +335,20 @@ function CashRegisterPage() {
           ))}
         </div>
 
+      </div>
+    </div>
+  );
+}
+
+// Componente visual dos cards de valores
+function StatCard({ label, value, icon, color }: any) {
+  return (
+    <div className="bg-background border border-border p-4 rounded-2xl shadow-sm hover:border-primary/50 transition-colors">
+      <div className={`flex items-center gap-2 mb-2 text-xs font-black uppercase tracking-wider ${color}`}>
+        {icon} {label}
+      </div>
+      <div className="text-2xl font-black text-foreground">
+        R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
       </div>
     </div>
   );
