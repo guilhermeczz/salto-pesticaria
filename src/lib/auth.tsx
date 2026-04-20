@@ -73,7 +73,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
-        // Erro 400 ou 401 cai aqui
         toast.error('Usuário ou senha inválidos.');
         return false;
       }
@@ -91,12 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // 📝 CADASTRO (REGISTER)
+  // 📝 CADASTRO (REGISTER) COM A "PONTE" PARA A TABELA
   const register = useCallback(async (name: string, username: string, password: string): Promise<boolean> => {
     try {
       const cleanUsername = username.toLowerCase().trim();
-      const email = `${cleanUsername}@gardens.com`;
+      // Usamos um e-mail falso padrão para facilitar o login só com username
+      const email = `${cleanUsername}@gardens.com`; 
       
+      // 1. Salva no cofre de autenticação (auth.users)
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -118,8 +119,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.user) {
-        toast.success('Conta criada com sucesso!');
-        // O onAuthStateChange cuidará do login automático se o Supabase estiver configurado para auto-confirm
+        // 👇 AQUI ESTÁ A MÁGICA: A PONTE! 👇
+        // 2. Salva o usuário na nossa tabela visual "usuarios" para aparecer na lista
+        const { error: dbError } = await supabase.from('usuarios').insert([{
+          id: data.user.id,
+          nome: name.trim(),
+          username: cleanUsername
+        }]);
+
+        if (dbError) {
+          console.error('Erro ao inserir na tabela usuarios:', dbError);
+          toast.error('Login criado, mas houve falha ao listar o usuário.');
+        } else {
+          toast.success('Conta criada com sucesso!');
+        }
       }
       
       return true;
@@ -137,7 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     toast.info('Sessão encerrada.');
   }, []);
 
-  // Tela de carregamento enquanto o Supabase verifica se você já está logado
   if (isInitializing) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">

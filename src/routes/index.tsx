@@ -18,7 +18,8 @@ import { useAuth } from '@/lib/auth';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
-import logoFull from '@/assets/logo-full.png';
+// IMPORTANDO A NOSSA LOGO NOVA LÁ DO HEADER
+import { SaltoGrandeLogo } from '@/components/AppHeader';
 
 export const Route = createFileRoute('/')({
   component: LoginPage,
@@ -87,24 +88,21 @@ function LoginPage() {
   return (
     <div className="min-h-screen w-full flex bg-background">
       
-      {/* LADO ESQUERDO: Banner com Imagem (Escondido no Mobile) */}
+      {/* LADO ESQUERDO: Banner com Imagem Churrasco/Grelha */}
       <div className="hidden lg:flex w-1/2 relative bg-black items-end p-16 overflow-hidden">
-        {/* Imagem de Fundo (Unsplash API) */}
         <div className="absolute inset-0 w-full h-full">
           <img
-            src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=1999&auto=format&fit=crop"
-            alt="Hambúrguer Artesanal"
+            src="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=1999&auto=format&fit=crop"
+            alt="Churrasco e Petiscos"
             className="w-full h-full object-cover opacity-50 scale-105 hover:scale-100 transition-transform duration-[10s] ease-out"
           />
-          {/* Gradiente escuro para garantir leitura do texto */}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
         </div>
 
-        {/* Texto de Impacto */}
         <div className="relative z-10 animate-slide-up">
           <h1 className="text-5xl xl:text-6xl font-black text-white mb-6 leading-tight drop-shadow-lg">
             A agilidade que a sua <br/>
-            <span className="text-primary">cozinha precisa.</span>
+            <span className="text-primary">churrasqueira precisa.</span>
           </h1>
           <p className="text-lg text-gray-300 max-w-md font-medium leading-relaxed drop-shadow-md">
             Gestão inteligente de pedidos, PDV integrado e impressão automática. Tudo em uma única plataforma.
@@ -114,14 +112,13 @@ function LoginPage() {
 
       {/* LADO DIREITO: Formulário de Login */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 relative overflow-hidden">
-        
-        {/* Efeito de luz (Glow) suave no fundo */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-primary/10 blur-[120px] rounded-full pointer-events-none" />
 
-        <div className="w-full max-w-md relative z-10 animate-fade-in">
+        <div className="w-full max-w-md relative z-10 animate-fade-in text-foreground">
           
-          <div className="text-center mb-8">
-            <img src={logoFull} alt="Gardens Lanches" className="w-48 h-48 mx-auto object-contain drop-shadow-2xl" width={512} height={512} />
+          <div className="text-center mb-8 flex justify-center">
+            {/* 👇 NOSSA NOVA LOGO INJETADA AQUI 👇 */}
+            <SaltoGrandeLogo className="w-full max-wxs h-28 mx-auto drop-shadow-2xl" />
           </div>
 
           <div className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-3xl p-8 shadow-2xl">
@@ -215,7 +212,7 @@ function LoginPage() {
           </div>
           
           <p className="text-center text-xs text-muted-foreground mt-8 font-medium">
-            &copy; {new Date().getFullYear()} Gardens Lanches. Todos os direitos reservados.
+            &copy; {new Date().getFullYear()} Salto Grande Grill e Petiscaria. Todos os direitos reservados.
           </p>
         </div>
       </div>

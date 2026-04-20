@@ -107,11 +107,12 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
         })}
       </div>
 
-      {/* ÁREA DE IMPRESSÃO - INTACTA */}
+      {/* 👇 ÁREA DE IMPRESSÃO - ATUALIZADA PARA O SALTO GRANDE 👇 */}
       {printOrder && (
         <div className="hidden print:block bg-white text-black p-0 m-0 w-[58mm] font-mono">
           <div style={{ width: '54mm', padding: '2px', color: '#000', background: '#fff', fontSize: '12px' }}>
-            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '16px' }}>{removerAcentos("GARDENS LANCHES")}</div>
+            <div style={{ textAlign: 'center', fontWeight: '900', fontSize: '18px' }}>{removerAcentos("SALTO GRANDE")}</div>
+            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '10px', marginBottom: '2px' }}>{removerAcentos("GRILL E PETISCARIA")}</div>
             <div style={{ textAlign: 'center', fontSize: '10px', marginBottom: '5px' }}>{removerAcentos("PRODUÇÃO COZINHA")}</div>
             <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }}></div>
             <div style={{ fontWeight: 'bold', fontSize: '14px' }}>PEDIDO: #{printOrder.number ? printOrder.number.toString().padStart(4, '0') : '0000'}</div>
@@ -120,12 +121,23 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
             <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }}></div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
-                {printOrder.items.map((item, idx) => (
-                  <tr key={idx} style={{ verticalAlign: 'top' }}>
-                    <td style={{ padding: '3px 0', width: '35mm' }}><span style={{ fontWeight: 'bold' }}>{item.quantity}un</span> - {removerAcentos(item.productName)}</td>
-                    <td style={{ textAlign: 'right', padding: '3px 0', whiteSpace: 'nowrap' }}>R${(item.quantity * item.unitPrice).toFixed(2)}</td>
-                  </tr>
-                ))}
+                <div style={{ display: 'flex', flexDirection: 'column', width: '100%', margin: '4px 0' }}>
+              {printOrder.items.map((item, idx) => (
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                  
+                  {/* Nome do Produto (Agora com o "-" na frente da quantidade) */}
+                  <div style={{ flex: 1, paddingRight: '8px', wordBreak: 'break-word', lineHeight: '1.2' }}>
+                    - <span style={{ fontWeight: 'bold' }}>{item.quantity}un</span> - {removerAcentos(item.productName)}
+                  </div>
+                  
+                  {/* Preço (Travado na direita, nunca quebra) */}
+                  <div style={{ whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 'bold' }}>
+                    R$ {(item.quantity * item.unitPrice).toFixed(2)}
+                  </div>
+                  
+                </div>
+              ))}
+            </div>
               </tbody>
             </table>
             <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }}></div>
@@ -143,7 +155,7 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
                 )}
               </div>
             )}
-            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '11px', marginTop: '15px' }}>(Gardens)</div>
+            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '11px', marginTop: '15px' }}>(Salto Grande)</div>
             <div style={{ textAlign: 'center', fontSize: '8px', marginTop: '10px' }}>.</div>
           </div>
         </div>
@@ -162,7 +174,7 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
         </div>
       )}
 
-      {/* MODAL DE PAGAMENTO ATUALIZADO */}
+      {/* MODAL DE PAGAMENTO */}
       {payTarget && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[999] print:hidden">
           <div style={{ backgroundColor: '#111', color: '#fff' }} className="p-8 rounded-3xl shadow-[0_0_50px_rgba(255,106,0,0.15)] max-w-sm w-full mx-4 border border-gray-800 animate-slide-up">
@@ -174,7 +186,7 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
               <h3 className="text-xl font-black text-center mb-1">Cobrar Pedido</h3>
               <p className="text-muted-foreground text-sm">Selecione a forma de pagamento</p>
               <p className="text-3xl font-black text-white mt-4 tracking-tight">
-                R$ {payTarget.total.toFixed(2)}
+                R$  {payTarget.total.toFixed(2)}
               </p>
             </div>
 
@@ -282,7 +294,7 @@ function OrderCard({ order, nextAction, onEdit, onDelete, onPrint, onPay, moveOr
       )}
 
       <div className="flex justify-between items-center mt-4 pt-3 border-t border-border">
-        <span className="font-bold text-sm">R$ {order.total.toFixed(2)}</span>
+        <span className="font-bold text-sm"> R$ {order.total.toFixed(2)}</span>
         <div className="flex gap-2">
           {order.status !== 'paid' && (
             <button onClick={onDelete} className="p-1.5 text-muted-foreground hover:text-white hover:bg-destructive rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>

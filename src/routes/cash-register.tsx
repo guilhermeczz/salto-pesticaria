@@ -170,7 +170,7 @@ function CashRegisterPage() {
     // Cabeçalho
     doc.setFontSize(22);
     doc.setTextColor(255, 106, 0); // Laranja Gardens
-    doc.text('GARDENS LANCHES', 14, 20);
+    doc.text('SALTO PETISCARIA', 14, 20);
 
     doc.setFontSize(14);
     doc.setTextColor(40, 40, 40);
@@ -229,7 +229,7 @@ function CashRegisterPage() {
       alternateRowStyles: { fillColor: [245, 245, 245] },
     });
 
-    doc.save(`Fechamento_Caixa_Gardens_${historyDate}.pdf`);
+    doc.save(`Fechamento_Caixa_Salto_${historyDate}.pdf`);
     toast.success("Download do PDF iniciado!");
   };
 

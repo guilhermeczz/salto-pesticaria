@@ -1,10 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth';
-import { ArrowLeft, Wallet, CheckCircle2, XCircle, AlertTriangle, FileCheck, Loader2, CalendarDays, Receipt } from 'lucide-react';
+import { ArrowLeft, Wallet, CheckCircle2, XCircle, AlertTriangle, FileCheck, Loader2, CalendarDays, Receipt, Download } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase'; 
+
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 function toInputDate(d: Date) {
   return d.toISOString().split('T')[0];
@@ -19,17 +22,14 @@ export function CashRegisterPage() {
   const [differenceValue, setDifferenceValue] = useState('');
   const [notes, setNotes] = useState('');
   
-  // ESTADOS DO FILTRO E HISTÓRICO
   const [historyDate, setHistoryDate] = useState(() => toInputDate(new Date()));
   const [dailyClosings, setDailyClosings] = useState<any[]>([]);
 
-  // MEMÓRIA LOCAL: Guarda o milissegundo exato do fechamento no computador
   const [lastClosingTime, setLastClosingTime] = useState<number>(() => {
     const saved = localStorage.getItem('@gardens:lastClosure');
     return saved ? parseInt(saved, 10) : 0;
   });
 
-  // Busca o fechamento MAIS RECENTE do banco apenas como backup
   const fetchLatestClosure = async () => {
     const { data, error } = await supabase
       .from('cash_closings')
@@ -46,7 +46,6 @@ export function CashRegisterPage() {
     }
   };
 
-  // Busca o histórico do dia selecionado no calendário
   const fetchHistoryByDate = async () => {
     const start = new Date(`${historyDate}T00:00:00`).toISOString();
     const end = new Date(`${historyDate}T23:59:59.999`).toISOString();
@@ -71,17 +70,14 @@ export function CashRegisterPage() {
     fetchHistoryByDate();
   }, [historyDate]);
 
-  // LÓGICA DE ZERAMENTO BLINDADA
   const unclosedOrders = useMemo(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     const end = new Date();
     end.setHours(23, 59, 59, 999);
     
-    // Pega as vendas pagas de hoje
     let orders = getArchivedOrders(start, end).filter(o => o.status === 'paid');
 
-    // Remove qualquer venda que aconteceu ANTES do último botão de fechar caixa
     if (lastClosingTime > 0) {
       orders = orders.filter(o => {
         const orderTime = new Date(o.createdAt).getTime();
@@ -107,27 +103,24 @@ export function CashRegisterPage() {
 
     setLoading(true);
     try {
-      // 1. Zera a tela IMEDIATAMENTE e grava no navegador
       const now = Date.now();
       localStorage.setItem('@gardens:lastClosure', now.toString());
       setLastClosingTime(now);
       setStep('closed');
 
-      // 2. Salva no banco de dados
       const { error } = await supabase.from('cash_closings').insert([{
         expected_total: expectedTotal,
         difference: diff,
         reported_total: reportedTotal,
         operator_name: user?.name || 'Operador',
         notes: notes || (diff === 0 ? 'Fechamento exato.' : 'Fechamento com divergência.'),
-        closing_date: toInputDate(new Date()) // Alimenta a coluna 'closing_date' do seu banco
+        closing_date: toInputDate(new Date()) 
       }]);
 
       if (error) throw error;
 
       toast.success('Caixa fechado com sucesso!');
       
-      // 3. Atualiza a lista do calendário
       fetchHistoryByDate();
     } catch (err) {
       console.error(err);
@@ -137,13 +130,64 @@ export function CashRegisterPage() {
     }
   };
 
+  // 👇 NOVA FUNÇÃO: GERA PDF DO CAIXA SALTO GRANDE 👇
+  const handleDownloadCashPDF = () => {
+    if (dailyClosings.length === 0) {
+      return toast.error("Não há fechamentos nesta data para gerar PDF.");
+    }
+
+    const doc = new jsPDF();
+
+    // Cabeçalho
+    doc.setFontSize(22);
+    doc.setTextColor(255, 106, 0); // Laranja Salto Grande
+    doc.text('SALTO GRANDE', 14, 20);
+    
+    doc.setFontSize(10);
+    doc.text('GRILL E PETISCARIA', 14, 25);
+    
+    doc.setFontSize(14);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Auditoria: Fechamentos de Caixa', 14, 35);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Data Analisada: ${new Date(historyDate + 'T12:00:00').toLocaleDateString('pt-BR')}`, 14, 41);
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 46);
+
+    const tableData = dailyClosings.map(closing => {
+      const rawDate = closing.created_at || closing.closing_date;
+      const dateText = rawDate ? new Date(rawDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+      return [
+        dateText,
+        closing.operator_name,
+        `R$ ${closing.expected_total.toFixed(2)}`,
+        `R$ ${closing.reported_total.toFixed(2)}`,
+        closing.difference === 0 ? 'Exato' : `R$ ${closing.difference.toFixed(2)}`,
+        closing.notes || '-'
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 55,
+      head: [['Data/Hora', 'Operador', 'Sistema', 'Declarado', 'Diferença', 'Obs']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [255, 106, 0], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 3 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+
+    doc.save(`Caixa_Salto_Grande_${historyDate}.pdf`);
+    toast.success("Download do PDF de Caixa iniciado!");
+  };
+
   const inputClass = "w-full px-4 py-3.5 rounded-xl bg-[#111] text-white border border-gray-800 focus:outline-none focus:border-primary focus:shadow-[0_0_15px_rgba(255,106,0,0.3)] transition-all font-bold [color-scheme:dark]";
 
   return (
     <div className="min-h-screen bg-background pt-8 pb-20">
       <div className="max-w-4xl mx-auto px-6 animate-fade-in">
         
-        {/* CABEÇALHO */}
         <div className="flex items-center gap-4 mb-8 border-b border-border pb-4">
           <Link to="/dashboard" className="p-2.5 bg-card border border-border rounded-xl text-muted-foreground hover:text-primary hover:border-primary transition-all active:scale-95 shadow-sm hover:-translate-x-1">
             <ArrowLeft className="w-5 h-5" />
@@ -153,7 +197,6 @@ export function CashRegisterPage() {
           </h2>
         </div>
 
-        {/* ÁREA DE FECHAMENTO (CAIXA ATUAL) */}
         <div className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-lg mb-8 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
           
@@ -182,7 +225,6 @@ export function CashRegisterPage() {
             </div>
           </div>
 
-          {/* FLUXO DE CONFIRMAÇÃO INTELIGENTE */}
           {step === 'closed' ? (
             <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-8 text-center animate-slide-up">
               <FileCheck className="w-16 h-16 text-green-500 mx-auto mb-4" />
@@ -271,7 +313,6 @@ export function CashRegisterPage() {
           ) : null}
         </div>
 
-        {/* LISTA DE AUDITORIA PROTEGIDA */}
         {unclosedOrders.length > 0 && (
           <div className="mb-12 animate-fade-in">
             <h3 className="font-black text-foreground mb-4 text-xl flex items-center gap-2">
@@ -305,18 +346,29 @@ export function CashRegisterPage() {
           </div>
         )}
 
-        {/* 👇 O NOVO CALENDÁRIO ESTÁ AQUI 👇 */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 mt-12 border-t border-border pt-8">
           <h3 className="font-black text-foreground text-xl">Histórico de Fechamentos</h3>
           
-          <div className="flex items-center gap-2 bg-[#111] border border-gray-800 rounded-xl px-4 py-2 shadow-sm focus-within:border-primary transition-colors cursor-pointer group hover:border-primary/50">
-            <CalendarDays className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-            <input 
-              type="date" 
-              value={historyDate} 
-              onChange={e => setHistoryDate(e.target.value)}
-              className="bg-transparent text-sm font-bold text-white focus:outline-none [color-scheme:dark] cursor-pointer"
-            />
+          <div className="flex items-center gap-3">
+            {/* 👇 BOTÃO NOVO: DOWNLOAD DO CAIXA 👇 */}
+            <button 
+              onClick={handleDownloadCashPDF}
+              disabled={dailyClosings.length === 0}
+              className="flex items-center gap-2 px-4 py-2.5 bg-background border border-border hover:border-primary hover:text-primary text-foreground rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              Baixar PDF
+            </button>
+
+            <div className="flex items-center gap-2 bg-[#111] border border-gray-800 rounded-xl px-4 py-2 shadow-sm focus-within:border-primary transition-colors cursor-pointer group hover:border-primary/50">
+              <CalendarDays className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+              <input 
+                type="date" 
+                value={historyDate} 
+                onChange={e => setHistoryDate(e.target.value)}
+                className="bg-transparent text-sm font-bold text-white focus:outline-none [color-scheme:dark] cursor-pointer"
+              />
+            </div>
           </div>
         </div>
 

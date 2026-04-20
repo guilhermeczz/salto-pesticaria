@@ -3,7 +3,6 @@ import { Menu, X, Home, Package, Users, BarChart3, LogOut, Wallet } from 'lucide
 import { Link, useLocation, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import logoFull from '@/assets/logo-full.png';
 
 const navItems = [
   { to: '/dashboard' as const, label: 'Início (Painel Diário)', icon: Home },
@@ -12,6 +11,23 @@ const navItems = [
   { to: '/reports' as const, label: 'Relatórios & Arquivados', icon: BarChart3 },
   { to: '/cash-register' as const, label: 'Fechamento de Caixa', icon: Wallet },
 ];
+
+// 👇 Logo Corrigida (Caixa mais larga para não cortar o texto) 👇
+export function SaltoGrandeLogo({ className = "h-10 w-auto" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 350 60" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Fogo Laranja */}
+      <path d="M30 40 C30 40 15 25 25 10 C25 10 35 20 38 5 C38 5 50 25 45 40 Z" fill="#ea580c" />
+      {/* Base da Grelha */}
+      <rect x="10" y="42" width="60" height="6" rx="2" fill="#1f2937" />
+      <rect x="20" y="48" width="8" height="8" fill="#1f2937" />
+      <rect x="52" y="48" width="8" height="8" fill="#1f2937" />
+      {/* Texto Salto Grande */}
+      <text x="80" y="32" fontFamily="sans-serif" fontWeight="900" fontSize="24" fill="currentColor">SALTO GRANDE</text>
+      <text x="82" y="48" fontFamily="sans-serif" fontWeight="bold" fontSize="11" fill="#ea580c" letterSpacing="0.15em">GRILL E PETISCARIA</text>
+    </svg>
+  );
+}
 
 export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -35,15 +51,15 @@ export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
 
   return (
     <>
-      {/* 👇 AQUI ESTÁ A MÁGICA DO VIDRO FOSCO 👇 */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-background/70 backdrop-blur-md border-b border-border transition-all print:hidden">
         <div className="flex items-center justify-between px-4 h-14">
           <button onClick={() => setDrawerOpen(true)} className="p-2 -ml-2 text-foreground hover:text-primary transition-colors">
             <Menu className="w-6 h-6" />
           </button>
 
-          <div className="flex items-center gap-2 hover:scale-105 transition-transform duration-300">
-            <img src={logoFull} alt="Gardens Lanches" className="h-10 w-auto" />
+          <div className="flex items-center gap-2 hover:scale-105 transition-transform duration-300 text-foreground">
+            {/* INSERINDO A LOGO AQUI */}
+            <SaltoGrandeLogo />
           </div>
 
           <div className="w-10" />
@@ -61,13 +77,12 @@ export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
 
       {drawerOpen && (
         <div className="fixed inset-0 z-[100] flex">
-          {/* Overlay escuro com animação de fade */}
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={() => setDrawerOpen(false)} />
 
-          {/* Menu Lateral com animação de deslizar */}
           <nav className="relative w-72 bg-card border-r border-border h-full flex flex-col shadow-2xl animate-slide-right">
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <img src={logoFull} alt="Gardens Lanches" className="h-8 w-auto" />
+            <div className="flex items-center justify-between p-4 border-b border-border text-foreground">
+              {/* INSERINDO A LOGO AQUI NA SIDEBAR */}
+              <SaltoGrandeLogo className="h-6 w-auto" />
               <button onClick={() => setDrawerOpen(false)} className="p-1 hover:text-primary transition-all hover:rotate-90">
                 <X className="w-6 h-6" />
               </button>
@@ -88,7 +103,6 @@ export function AppHeader({ onNewOrder }: { onNewOrder: () => void }) {
                     key={item.to}
                     to={item.to}
                     onClick={() => setDrawerOpen(false)}
-                    // Adicionei o 'group' abaixo para a animação do ícone funcionar
                     className={`group flex items-center gap-3 px-6 py-3 text-sm font-medium transition-all hover:bg-muted hover:pl-8 ${
                       isActive ? 'bg-primary/10 text-primary border-r-4 border-primary' : 'text-foreground'
                     }`}
