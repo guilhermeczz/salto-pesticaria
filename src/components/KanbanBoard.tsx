@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
+import { supabase } from '@/lib/supabase';
 import type { Order, OrderStatus, OrderBatch } from '@/lib/types';
 import {
   ListTodo,
@@ -12,6 +13,7 @@ import {
   PlusCircle,
   Search,
   Banknote,
+  AlertTriangle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -54,7 +56,7 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
   const store = useAppStore();
   const todayOrders = store.getTodayOrders?.() ?? [];
   const deleteOrder = store.deleteOrder ?? (() => {});
-  const { moveOrder, payOrder } = useAppStore();
+  const { moveOrder, payOrder, orders } = useAppStore();
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [payTarget, setPayTarget] = useState<Order | null>(null);
@@ -64,6 +66,7 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
 
   const [cashTarget, setCashTarget] = useState<Order | null>(null);
   const [cashReceived, setCashReceived] = useState('');
+  const [openSession, setOpenSession] = useState<any | null>(null);
 
   useEffect(() => {
     if (printJob) {
@@ -74,6 +77,28 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
       return () => clearTimeout(timer);
     }
   }, [printJob]);
+
+  useEffect(() => {
+    const fetchOpenSession = async () => {
+      const { data, error } = await supabase
+        .from('cash_sessions')
+        .select('*')
+        .eq('status', 'open')
+        .order('id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao buscar caixa aberto:', error);
+        setOpenSession(null);
+        return;
+      }
+
+      setOpenSession(data ?? null);
+    };
+
+    fetchOpenSession();
+  }, [cashTarget, payTarget]);
 
   const filteredOrders = useMemo(() => {
     const q = removerAcentos(searchTerm.trim().toLowerCase());
@@ -116,22 +141,58 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
     : printJob?.order.createdAt;
 
   const normalizeMoneyInput = (value: string) => {
-  const cleaned = String(value).replace(/\s/g, '').replace(',', '.');
-  return Number(cleaned);
-};
+    const cleaned = String(value).replace(/\s/g, '').replace(',', '.');
+    return Number(cleaned);
+  };
 
-const cashReceivedValue = normalizeMoneyInput(cashReceived);
+  const cashReceivedValue = normalizeMoneyInput(cashReceived);
 
   const cashChange =
     cashTarget && !Number.isNaN(cashReceivedValue)
       ? cashReceivedValue - cashTarget.total
       : 0;
 
+  const sessionCashOrders = useMemo(() => {
+    if (!openSession) return [];
+
+    return orders.filter((order: any) => {
+      return (
+        order.status === 'paid' &&
+        String(order.paymentMethod || '').toLowerCase() === 'dinheiro' &&
+        order.cashSessionId === openSession.id
+      );
+    });
+  }, [orders, openSession]);
+
+  const availableCashForChange = useMemo(() => {
+    const openingAmount = Number(openSession?.opening_amount || 0);
+
+    const totalReceivedCash = sessionCashOrders.reduce(
+      (sum: number, order: any) => sum + Number(order.amountReceived || 0),
+      0
+    );
+
+    const totalChangeGiven = sessionCashOrders.reduce(
+      (sum: number, order: any) => sum + Number(order.changeGiven || 0),
+      0
+    );
+
+    return openingAmount + totalReceivedCash - totalChangeGiven;
+  }, [openSession, sessionCashOrders]);
+
+  const hasInsufficientChange =
+    !!cashTarget &&
+    !!cashReceived &&
+    !Number.isNaN(cashReceivedValue) &&
+    cashChange > 0 &&
+    cashChange > availableCashForChange;
+
   const canConfirmCashPayment =
     !!cashTarget &&
     !!cashReceived &&
     !Number.isNaN(cashReceivedValue) &&
-    cashReceivedValue >= cashTarget.total;
+    cashReceivedValue >= cashTarget.total &&
+    !hasInsufficientChange;
 
   return (
     <>
@@ -497,8 +558,15 @@ const cashReceivedValue = normalizeMoneyInput(cashReceived);
                   </span>
                 </div>
 
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Disponível para troco</span>
+                  <span className="font-bold text-white">
+                    R$ {availableCashForChange.toFixed(2)}
+                  </span>
+                </div>
+
                 <div className="border-t border-gray-800 pt-3 flex justify-between items-center">
-                  <span className="text-sm font-bold text-muted-foreground">Troco</span>
+                  <span className="text-sm font-bold text-muted-foreground">Troco necessário</span>
                   <span
                     className={`text-2xl font-black ${cashChange >= 0 ? 'text-green-500' : 'text-red-500'}`}
                   >
@@ -509,6 +577,23 @@ const cashReceivedValue = normalizeMoneyInput(cashReceived);
                 {cashReceived && cashChange < 0 && (
                   <p className="text-xs text-red-400 font-medium">
                     O valor recebido é menor que o total do pedido.
+                  </p>
+                )}
+
+                {cashReceived && cashChange > 0 && hasInsufficientChange && (
+                  <div className="rounded-xl border border-red-500/25 bg-red-500/10 p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5" />
+                      <p className="text-xs text-red-300 font-medium leading-relaxed">
+                        Troco insuficiente no caixa. Disponível: R$ {availableCashForChange.toFixed(2)}. Necessário: R$ {cashChange.toFixed(2)}.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {!!openSession && (
+                  <p className="text-[11px] text-gray-400">
+                    Fundo inicial considerado: R$ {Number(openSession.opening_amount || 0).toFixed(2)}
                   </p>
                 )}
               </div>
@@ -534,7 +619,7 @@ const cashReceivedValue = normalizeMoneyInput(cashReceived);
                   });
                   setCashTarget(null);
                   setCashReceived('');
-                  }}
+                }}
                 className="flex-1 py-4 bg-green-600 hover:bg-green-500 text-white rounded-2xl font-black transition-all disabled:opacity-50 disabled:hover:bg-green-600"
               >
                 Confirmar

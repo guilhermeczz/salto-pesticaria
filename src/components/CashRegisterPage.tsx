@@ -17,6 +17,7 @@ import {
   CreditCard,
   LockOpen,
   BadgeDollarSign,
+  Landmark,
 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { toast } from 'sonner';
@@ -30,7 +31,10 @@ function toInputDate(d: Date) {
 }
 
 function money(v: number) {
-  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return v.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 export function CashRegisterPage() {
@@ -136,6 +140,14 @@ export function CashRegisterPage() {
       .filter((o: any) => String(o.paymentMethod || '').toLowerCase() === 'dinheiro')
       .reduce((sum: number, o: any) => sum + Number(o.changeGiven || 0), 0);
   }, [sessionPaidOrders]);
+
+  const openingCash = useMemo(() => {
+    return Number(openSession?.opening_amount || 0);
+  }, [openSession]);
+
+  const availableChangeNow = useMemo(() => {
+    return openingCash + totalReceivedCash - totalChangeGiven;
+  }, [openingCash, totalReceivedCash, totalChangeGiven]);
 
   const handleOpenRegister = async () => {
     const amount = Number(String(openingAmount).replace(',', '.'));
@@ -276,14 +288,21 @@ export function CashRegisterPage() {
         ['Fechamentos do dia', String(dailyClosings.length)],
       ],
       theme: 'grid',
-      headStyles: { fillColor: [255, 106, 0], textColor: [255, 255, 255], fontStyle: 'bold' },
+      headStyles: {
+        fillColor: [255, 106, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+      },
       styles: { fontSize: 10, cellPadding: 4 },
     });
 
     const tableData = dailyClosings.map((closing) => {
       const rawDate = closing.closed_at || closing.created_at;
       const dateText = rawDate
-        ? new Date(rawDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+        ? new Date(rawDate).toLocaleString('pt-BR', {
+            dateStyle: 'short',
+            timeStyle: 'short',
+          })
         : '-';
 
       return [
@@ -303,7 +322,11 @@ export function CashRegisterPage() {
       head: [['Data/Hora', 'Aberto por', 'Fechado por', 'Inicial', 'Sistema', 'Contado', 'Diferença', 'Observação']],
       body: tableData,
       theme: 'striped',
-      headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold' },
+      headStyles: {
+        fillColor: [30, 30, 30],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+      },
       styles: { fontSize: 8.5, cellPadding: 3 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
     });
@@ -319,7 +342,10 @@ export function CashRegisterPage() {
     <div className="min-h-screen bg-background pt-8 pb-20">
       <div className="max-w-5xl mx-auto px-6 animate-fade-in">
         <div className="flex items-center gap-4 mb-8 border-b border-border pb-4">
-          <Link to="/dashboard" className="p-2.5 bg-card border border-border rounded-xl text-muted-foreground hover:text-primary hover:border-primary transition-all active:scale-95 shadow-sm hover:-translate-x-1">
+          <Link
+            to="/dashboard"
+            className="p-2.5 bg-card border border-border rounded-xl text-muted-foreground hover:text-primary hover:border-primary transition-all active:scale-95 shadow-sm hover:-translate-x-1"
+          >
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <h2 className="text-3xl font-black text-primary drop-shadow-sm flex items-center gap-3">
@@ -332,13 +358,21 @@ export function CashRegisterPage() {
 
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <div>
-              <p className="text-sm font-black text-muted-foreground uppercase tracking-widest mb-1">Situação do Caixa</p>
+              <p className="text-sm font-black text-muted-foreground uppercase tracking-widest mb-1">
+                Situação do Caixa
+              </p>
               <h3 className="text-2xl font-black text-foreground">
-                {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
+                {new Date().toLocaleDateString('pt-BR', {
+                  weekday: 'long',
+                  day: '2-digit',
+                  month: 'long',
+                })}
               </h3>
             </div>
             <div className="bg-background border border-border px-4 py-2 rounded-xl">
-              <p className="text-xs font-bold text-muted-foreground mb-0.5 uppercase text-center">Operador</p>
+              <p className="text-xs font-bold text-muted-foreground mb-0.5 uppercase text-center">
+                Operador
+              </p>
               <p className="font-black text-primary">{user?.name || 'Usuário Logado'}</p>
             </div>
           </div>
@@ -357,7 +391,7 @@ export function CashRegisterPage() {
                     type="number"
                     placeholder="Ex: 100.00"
                     value={openingAmount}
-                    onChange={e => setOpeningAmount(e.target.value)}
+                    onChange={(e) => setOpeningAmount(e.target.value)}
                     className={inputClass}
                   />
                 </div>
@@ -368,7 +402,7 @@ export function CashRegisterPage() {
                     type="text"
                     placeholder="Ex: troco inicial"
                     value={openingNotes}
-                    onChange={e => setOpeningNotes(e.target.value)}
+                    onChange={(e) => setOpeningNotes(e.target.value)}
                     className={inputClass}
                   />
                 </div>
@@ -379,7 +413,13 @@ export function CashRegisterPage() {
                 disabled={loading}
                 className="w-full py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><LockOpen className="w-5 h-5" /> Abrir Caixa</>}
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <LockOpen className="w-5 h-5" /> Abrir Caixa
+                  </>
+                )}
               </button>
             </div>
           ) : step === 'closed' ? (
@@ -415,7 +455,7 @@ export function CashRegisterPage() {
                 <div className="bg-background border border-border px-4 py-3 rounded-xl">
                   <p className="text-[10px] uppercase font-black text-muted-foreground">Fundo inicial</p>
                   <p className="text-xl font-black text-primary">
-                    R$ {money(Number(openSession.opening_amount || 0))}
+                    R$ {money(openingCash)}
                   </p>
                 </div>
               </div>
@@ -427,7 +467,7 @@ export function CashRegisterPage() {
                 <StatCard label="Débito" value={stats.debito} icon={<CreditCard className="w-4 h-4" />} color="text-purple-500" />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div className="bg-[#111] border border-gray-800 rounded-2xl p-6 shadow-inner">
                   <p className="text-sm font-bold text-gray-400 mb-1">Pedidos Recebidos</p>
                   <p className="text-4xl font-black text-white">{sessionPaidOrders.length}</p>
@@ -441,10 +481,23 @@ export function CashRegisterPage() {
                 <div className="bg-[#111] border border-gray-800 rounded-2xl p-6 shadow-inner">
                   <div className="flex items-center gap-2 text-sm font-bold text-gray-400 mb-2">
                     <BadgeDollarSign className="w-4 h-4" />
-                    Operação em dinheiro
+                    Recebido em dinheiro
                   </div>
-                  <p className="text-sm text-white">Recebido: <span className="font-black">R$ {money(totalReceivedCash)}</span></p>
-                  <p className="text-sm text-white mt-1">Troco: <span className="font-black text-orange-500">R$ {money(totalChangeGiven)}</span></p>
+                  <p className="text-2xl font-black text-white">R$ {money(totalReceivedCash)}</p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    Troco devolvido: <span className="font-black text-orange-500">R$ {money(totalChangeGiven)}</span>
+                  </p>
+                </div>
+
+                <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-6 shadow-inner">
+                  <div className="flex items-center gap-2 text-sm font-bold text-green-500 mb-2">
+                    <Landmark className="w-4 h-4" />
+                    Disponível p/ troco
+                  </div>
+                  <p className="text-2xl font-black text-white">R$ {money(availableChangeNow)}</p>
+                  <p className="text-sm text-green-300/80 mt-2">
+                    Inicial + recebido - troco
+                  </p>
                 </div>
               </div>
 
@@ -463,7 +516,7 @@ export function CashRegisterPage() {
                       type="number"
                       placeholder="Ex: 350.00"
                       value={countedTotal}
-                      onChange={e => setCountedTotal(e.target.value)}
+                      onChange={(e) => setCountedTotal(e.target.value)}
                       className={inputClass}
                     />
                   </div>
@@ -474,7 +527,13 @@ export function CashRegisterPage() {
                       disabled={loading}
                       className="flex-1 py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
                     >
-                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle2 className="w-5 h-5" /> Fechar sem divergência</>}
+                      {loading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-5 h-5" /> Fechar sem divergência
+                        </>
+                      )}
                     </button>
 
                     <button
@@ -499,7 +558,7 @@ export function CashRegisterPage() {
                         type="number"
                         placeholder="Ex: 350.00"
                         value={countedTotal}
-                        onChange={e => setCountedTotal(e.target.value)}
+                        onChange={(e) => setCountedTotal(e.target.value)}
                         className={inputClass}
                       />
                     </div>
@@ -510,7 +569,7 @@ export function CashRegisterPage() {
                         type="number"
                         placeholder="Ex: -10.50 ou 5.00"
                         value={differenceValue}
-                        onChange={e => setDifferenceValue(e.target.value)}
+                        onChange={(e) => setDifferenceValue(e.target.value)}
                         className={inputClass}
                       />
                     </div>
@@ -521,7 +580,7 @@ export function CashRegisterPage() {
                         type="text"
                         placeholder="Ex: faltou troco"
                         value={notes}
-                        onChange={e => setNotes(e.target.value)}
+                        onChange={(e) => setNotes(e.target.value)}
                         className={inputClass}
                       />
                     </div>
@@ -664,37 +723,52 @@ export function CashRegisterPage() {
               : 'Data Indisponível';
 
             return (
-              <div key={closing.id} className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-primary/50 transition-all">
+              <div
+                key={closing.id}
+                className="bg-card border border-border rounded-xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-primary/50 transition-all"
+              >
                 <div>
                   <div className="flex items-center gap-3 mb-1">
                     <span className="font-black text-foreground text-lg">{dateText}</span>
                     {Number(closing.difference || 0) === 0 ? (
-                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">Exato</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">
+                        Exato
+                      </span>
                     ) : (
-                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">Divergência</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20">
+                        Divergência
+                      </span>
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Abertura: <span className="font-bold">{closing.opened_by || '-'}</span> | Fechamento:{' '}
                     <span className="font-bold">{closing.closed_by || '-'}</span>
                   </p>
-                  {closing.notes && <p className="text-xs mt-1 italic text-muted-foreground/70 border-l-2 border-border pl-2">{closing.notes}</p>}
+                  {closing.notes && (
+                    <p className="text-xs mt-1 italic text-muted-foreground/70 border-l-2 border-border pl-2">
+                      {closing.notes}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex gap-6 bg-[#111] p-3 rounded-xl border border-gray-800 shadow-inner">
                   <div className="text-right">
                     <p className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Sistema</p>
-                    <p className="font-bold text-foreground">R$ {money(Number(closing.expected_total || 0))}</p>
+                    <p className="font-bold text-foreground">
+                      R$ {money(Number(closing.expected_total || 0))}
+                    </p>
                   </div>
                   <div className="text-right border-l border-gray-800 pl-6">
                     <p className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Contado</p>
-                    <p className={`font-black ${
-                      Number(closing.difference || 0) < 0
-                        ? 'text-red-500'
-                        : Number(closing.difference || 0) > 0
+                    <p
+                      className={`font-black ${
+                        Number(closing.difference || 0) < 0
+                          ? 'text-red-500'
+                          : Number(closing.difference || 0) > 0
                           ? 'text-green-500'
                           : 'text-primary'
-                    }`}>
+                      }`}
+                    >
                       R$ {money(Number(closing.counted_total || 0))}
                     </p>
                   </div>
