@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
-import type { Order, Product, User, OrderStatus, OrderItem, Category, PaymentMethod } from './types';
+import type { Order, Product, User, OrderStatus, OrderItem, Category, PaymentMethod, OrderBatch } from './types';
 import { supabase } from './supabase';
 import { toast } from 'sonner';
 
@@ -9,13 +9,17 @@ interface AppState {
   users: User[];
   categories: Category[];
   orderCounter: number;
-  fetchUsers: () => Promise<void>; // ✨ Nova função para atualização instantânea
+  fetchUsers: () => Promise<void>;
   addOrder: (customerName: string, items: OrderItem[], notes?: string) => Promise<void>;
   updateOrder: (orderId: string, customerName: string, items: OrderItem[], notes?: string) => Promise<void>;
+  addItemsToOrder: (orderId: string, customerName: string, items: OrderItem[], batchNotes?: string) => Promise<void>;
   moveOrder: (orderId: string, newStatus: OrderStatus) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
-  payOrder: (orderId: string, paymentMethod: PaymentMethod) => Promise<void>;
-  addProduct: (product: Omit<Product, 'id'>) => Promise<boolean>;
+  payOrder: (
+  orderId: string,
+  paymentMethod: PaymentMethod,
+  extra?: { amountReceived?: number | null; changeGiven?: number | null }
+) => Promise<void>;  addProduct: (product: Omit<Product, 'id'>) => Promise<boolean>;
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   addUser: (user: Omit<User, 'id'>) => Promise<boolean>;
@@ -29,52 +33,117 @@ interface AppState {
 
 const AppContext = createContext<AppState | null>(null);
 
+const makeBatchId = () => `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
 
-  // ✨ Função isolada para buscar usuários (usada pela UsersPage)
   const fetchUsers = useCallback(async () => {
     const { data: userData, error } = await supabase
       .from('usuarios')
       .select('id, nome, username')
       .order('nome');
-    
+
     if (error) {
-      console.error("Erro ao buscar usuários:", error);
-    } else if (userData) {
-      setUsers(userData.map((u: any) => ({ 
-        id: u.id, 
-        name: u.nome, 
-        username: u.username,
-        password: '' // Senha não vem mais daqui!
-      })));
+      console.error('Erro ao buscar usuários:', error);
+      return;
+    }
+
+    if (userData) {
+      setUsers(
+        userData.map((u: any) => ({
+          id: u.id,
+          name: u.nome,
+          username: u.username,
+        }))
+      );
     }
   }, []);
 
   const fetchData = useCallback(async () => {
     try {
-      // Categorias
       const { data: catData } = await supabase.from('categorias').select('*');
-      if (catData) setCategories(catData.map((c: any) => ({ id: c.id, name: c.nome, emoji: c.emoji })));
+      if (catData) {
+        setCategories(catData.map((c: any) => ({
+          id: c.id,
+          name: c.nome,
+          emoji: c.emoji,
+        })));
+      }
 
-      // Produtos
       const { data: prodData } = await supabase.from('produtos').select('*');
-      if (prodData) setProducts(prodData.map((p: any) => ({ 
-        id: p.id, name: p.nome, price: Number(p.preco), categoryId: p.categoria_id,
-        active: p.ativo
-      })));
+      if (prodData) {
+        setProducts(prodData.map((p: any) => ({
+          id: p.id,
+          name: p.nome,
+          price: Number(p.preco),
+          categoryId: p.categoria_id,
+          active: p.ativo,
+        })));
+      }
 
-      // Chamamos a nossa nova função de usuários
       await fetchUsers();
 
-      // Pedidos
-      const { data: orderData } = await supabase.from('pedidos').select('*, pedido_itens(*)').order('created_at', { ascending: false });
+      const { data: orderData, error: orderError } = await supabase
+        .from('pedidos')
+        .select('*, pedido_itens(*)')
+        .order('created_at', { ascending: false });
+
+      if (orderError) {
+        console.error('Erro ao buscar pedidos:', orderError);
+        return;
+      }
+
       if (orderData) {
-        setOrders(orderData.map((o: any) => ({
-          id: o.id.toString(),
+        const mappedOrders: Order[] = orderData.map((o: any) => {
+          const mappedItems: OrderItem[] = (o.pedido_itens || [])
+            .map((item: any) => ({
+              productId: String(item.id),
+              productName: item.produto_nome,
+              quantity: item.quantidade,
+              unitPrice: Number(item.preco_unitario),
+              batchId: item.lote_id || `legacy_${o.id}`,
+              batchNotes: item.lote_observacao || '',
+              createdAt: item.created_at ? new Date(item.created_at) : new Date(o.created_at),
+            }))
+            .sort((a: OrderItem, b: OrderItem) =>
+  new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+);
+
+          const groupedByBatch = mappedItems.reduce<Record<string, OrderItem[]>>((acc, item) => {
+            const key = item.batchId || `legacy_${o.id}`;
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(item);
+            return acc;
+          }, {});
+
+          let itemBatches: OrderBatch[] = Object.entries(groupedByBatch)
+            .map(([batchId, items]) => {
+              const sortedItems = [...items].sort(
+                (a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+              );
+
+              return {
+                id: batchId,
+                items: sortedItems,
+                notes: sortedItems[0]?.batchNotes || '',
+                createdAt: sortedItems[0]?.createdAt || new Date(o.created_at),
+                isAdditional: false,
+              };
+            })
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+          itemBatches = itemBatches.map((batch, index) => ({
+            ...batch,
+            isAdditional: index > 0,
+            notes: batch.notes || (index === 0 ? (o.observacao || '') : ''),
+          }));
+
+          return {
+          id: String(o.id),
           number: o.id,
           customerName: o.cliente_nome,
           total: Number(o.valor_total),
@@ -83,49 +152,137 @@ export function AppProvider({ children }: { children: ReactNode }) {
           paymentMethod: o.forma_pagamento as PaymentMethod,
           notes: o.observacao,
           createdAt: new Date(o.created_at),
-          items: (o.pedido_itens || []).map((item: any) => ({
-            productId: item.id.toString(),
-            productName: item.produto_nome,
-            quantity: item.quantidade,
-            unitPrice: Number(item.preco_unitario)
-          }))
-        })));
+          items: mappedItems,
+          itemBatches,
+          paidAt: o.paid_at ? new Date(o.paid_at) : undefined,
+          cashSessionId: o.cash_session_id ?? null,
+          amountReceived: o.amount_received != null ? Number(o.amount_received) : null,
+          changeGiven: o.change_given != null ? Number(o.change_given) : null,
+          };
+        });
+
+        setOrders(mappedOrders);
       }
-    } catch (error) { console.error("Erro ao buscar dados:", error); }
+    } catch (error) {
+      console.error('Erro ao buscar dados:', error);
+    }
   }, [fetchUsers]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  // --- MÉTODOS DE PEDIDOS ---
   const addOrder = useCallback(async (customerName: string, items: OrderItem[], notes: string = '') => {
     const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const { data: order, error } = await supabase.from('pedidos').insert([{ 
-      cliente_nome: customerName, valor_total: total, status: 'new', observacao: notes
-    }]).select().single();
+
+    const { data: order, error } = await supabase
+      .from('pedidos')
+      .insert([{
+        cliente_nome: customerName,
+        valor_total: total,
+        status: 'new',
+        observacao: notes,
+      }])
+      .select()
+      .single();
+
     if (error) throw error;
-    
+
+    const batchId = makeBatchId();
+    const now = new Date().toISOString();
+
     const itemsToInsert = items.map(item => ({
-      pedido_id: order.id, produto_nome: item.productName, quantidade: item.quantity, preco_unitario: item.unitPrice
+      pedido_id: order.id,
+      produto_nome: item.productName,
+      quantidade: item.quantity,
+      preco_unitario: item.unitPrice,
+      lote_id: batchId,
+      lote_observacao: notes,
+      created_at: now,
     }));
-    await supabase.from('pedido_itens').insert(itemsToInsert);
-    fetchData();
-    toast.success("Pedido realizado!");
+
+    const { error: itemsError } = await supabase.from('pedido_itens').insert(itemsToInsert);
+    if (itemsError) throw itemsError;
+
+    await fetchData();
+    toast.success('Pedido realizado!');
   }, [fetchData]);
 
   const updateOrder = useCallback(async (orderId: string, customerName: string, items: OrderItem[], notes: string = '') => {
     const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const { error: orderError } = await supabase.from('pedidos').update({ 
-      cliente_nome: customerName, valor_total: total, observacao: notes 
-    }).eq('id', orderId);
+
+    const { error: orderError } = await supabase
+      .from('pedidos')
+      .update({
+        cliente_nome: customerName,
+        valor_total: total,
+        observacao: notes,
+      })
+      .eq('id', orderId);
+
     if (orderError) throw orderError;
-    await supabase.from('pedido_itens').delete().eq('pedido_id', orderId);
-    
+
+    const { error: deleteItemsError } = await supabase.from('pedido_itens').delete().eq('pedido_id', orderId);
+    if (deleteItemsError) throw deleteItemsError;
+
+    const batchId = makeBatchId();
+    const now = new Date().toISOString();
+
     const itemsToInsert = items.map(item => ({
-      pedido_id: orderId, produto_nome: item.productName, quantidade: item.quantity, preco_unitario: item.unitPrice
+      pedido_id: orderId,
+      produto_nome: item.productName,
+      quantidade: item.quantity,
+      preco_unitario: item.unitPrice,
+      lote_id: batchId,
+      lote_observacao: notes,
+      created_at: now,
     }));
-    await supabase.from('pedido_itens').insert(itemsToInsert);
-    fetchData();
-    toast.success("Pedido atualizado!");
+
+    const { error: insertItemsError } = await supabase.from('pedido_itens').insert(itemsToInsert);
+    if (insertItemsError) throw insertItemsError;
+
+    await fetchData();
+    toast.success('Pedido atualizado!');
+  }, [fetchData]);
+
+  const addItemsToOrder = useCallback(async (orderId: string, customerName: string, items: OrderItem[], batchNotes: string = '') => {
+    const batchTotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const batchId = makeBatchId();
+    const now = new Date().toISOString();
+
+    const { data: currentOrder, error: currentOrderError } = await supabase
+      .from('pedidos')
+      .select('valor_total')
+      .eq('id', orderId)
+      .single();
+
+    if (currentOrderError) throw currentOrderError;
+
+    const itemsToInsert = items.map(item => ({
+      pedido_id: orderId,
+      produto_nome: item.productName,
+      quantidade: item.quantity,
+      preco_unitario: item.unitPrice,
+      lote_id: batchId,
+      lote_observacao: batchNotes,
+      created_at: now,
+    }));
+
+    const { error: insertError } = await supabase.from('pedido_itens').insert(itemsToInsert);
+    if (insertError) throw insertError;
+
+    const { error: updateError } = await supabase
+      .from('pedidos')
+      .update({
+        cliente_nome: customerName,
+        valor_total: Number(currentOrder.valor_total || 0) + batchTotal,
+      })
+      .eq('id', orderId);
+
+    if (updateError) throw updateError;
+
+    await fetchData();
+    toast.success('Itens adicionados ao pedido!');
   }, [fetchData]);
 
   const moveOrder = useCallback(async (orderId: string, newStatus: OrderStatus) => {
@@ -138,27 +295,85 @@ export function AppProvider({ children }: { children: ReactNode }) {
     fetchData();
   }, [fetchData]);
 
-  const payOrder = useCallback(async (orderId: string, paymentMethod: PaymentMethod) => {
-    await supabase.from('pedidos').update({ status: 'paid', pago: true, forma_pagamento: paymentMethod }).eq('id', orderId);
-    fetchData();
-  }, [fetchData]);
+const payOrder = useCallback(
+  async (
+    orderId: string,
+    paymentMethod: PaymentMethod,
+    extra?: { amountReceived?: number | null; changeGiven?: number | null }
+  ) => {
+    const { data: openSession, error: sessionError } = await supabase
+      .from('cash_sessions')
+      .select('id')
+      .eq('status', 'open')
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  // --- MÉTODOS DE PRODUTOS ---
+    if (sessionError) {
+      console.error('Erro ao buscar caixa aberto:', sessionError);
+      toast.error('Erro ao validar o caixa aberto.');
+      return;
+    }
+
+    if (!openSession) {
+      toast.error('Abra o caixa antes de registrar pagamentos.');
+      return;
+    }
+
+    const payload: any = {
+      status: 'paid',
+      pago: true,
+      forma_pagamento: paymentMethod,
+      paid_at: new Date().toISOString(),
+      cash_session_id: openSession.id,
+    };
+
+    if (paymentMethod === 'dinheiro') {
+      payload.amount_received =
+        extra?.amountReceived != null ? Number(extra.amountReceived) : null;
+      payload.change_given =
+        extra?.changeGiven != null ? Number(extra.changeGiven) : null;
+    } else {
+      payload.amount_received = null;
+      payload.change_given = null;
+    }
+
+    const { error } = await supabase.from('pedidos').update(payload).eq('id', orderId);
+
+    if (error) {
+      console.error('Erro ao registrar pagamento:', error);
+      toast.error('Erro ao registrar pagamento.');
+      return;
+    }
+
+    fetchData();
+  },
+  [fetchData]
+);
   const addProduct = useCallback(async (product: Omit<Product, 'id'>) => {
     const { error } = await supabase.from('produtos').insert([{
-      nome: product.name, preco: product.price, categoria_id: product.categoryId
+      nome: product.name,
+      preco: product.price,
+      categoria_id: product.categoryId,
     }]);
+
     if (error) return false;
     fetchData();
     return true;
   }, [fetchData]);
 
   const updateProduct = useCallback(async (product: Product) => {
-    await supabase.from('produtos').update({ 
-      nome: product.name, preco: product.price, categoria_id: product.categoryId,
-    }).eq('id', product.id);
+    await supabase
+      .from('produtos')
+      .update({
+        nome: product.name,
+        preco: product.price,
+        categoria_id: product.categoryId,
+      })
+      .eq('id', product.id);
+
     fetchData();
-    toast.success("Produto atualizado!");
+    toast.success('Produto atualizado!');
   }, [fetchData]);
 
   const deleteProduct = useCallback(async (id: string) => {
@@ -166,18 +381,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     fetchData();
   }, [fetchData]);
 
-  // --- MÉTODOS DE CATEGORIAS ---
   const addCategory = useCallback(async (category: Omit<Category, 'id'>) => {
     await supabase.from('categorias').insert([{ nome: category.name, emoji: category.emoji }]);
     fetchData();
   }, [fetchData]);
 
   const updateCategory = useCallback(async (category: Category) => {
-    await supabase.from('categorias').update({ 
-      nome: category.name, emoji: category.emoji 
-    }).eq('id', category.id);
+    await supabase
+      .from('categorias')
+      .update({
+        nome: category.name,
+        emoji: category.emoji,
+      })
+      .eq('id', category.id);
+
     fetchData();
-    toast.success("Categoria atualizada!");
+    toast.success('Categoria atualizada!');
   }, [fetchData]);
 
   const deleteCategory = useCallback(async (id: string) => {
@@ -185,25 +404,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     fetchData();
   }, [fetchData]);
 
-  // --- MÉTODOS DE USUÁRIOS (Sincronizados com o Auth) ---
   const addUser = useCallback(async (user: Omit<User, 'id'>) => {
-    // ⚠️ Atenção: Para criar login, use o register do useAuth().
-    // Esta função aqui agora serve apenas para casos de contingência.
-    const { error } = await supabase.from('usuarios').insert([{ 
-      nome: user.name, 
-      username: user.username 
+    const { error } = await supabase.from('usuarios').insert([{
+      nome: user.name,
+      username: user.username,
     }]);
+
     if (error) return false;
     fetchUsers();
     return true;
   }, [fetchUsers]);
 
-  const deleteUser = useCallback(async (id: string) => {
-    // Primeiro deleta da tabela pública
-    await supabase.from('usuarios').delete().eq('id', id);
-    fetchUsers();
-    // Nota: O usuário continuará no Auth do Supabase até ser removido lá manualmente por segurança.
-  }, [fetchUsers]);
+ const deleteUser = useCallback(async (id: string) => {
+  const targetUser = users.find((u) => u.id === id);
+
+  const isProtected =
+    targetUser &&
+    (
+      String(targetUser.name || '').trim().toLowerCase() === 'desenvolvedor' ||
+      String(targetUser.username || '').trim().toLowerCase() === 'dev'
+    );
+
+  if (isProtected) {
+    toast.error('O acesso do Desenvolvedor é protegido e não pode ser removido.');
+    return;
+  }
+
+  await supabase.from('usuarios').delete().eq('id', id);
+  fetchUsers();
+}, [fetchUsers, users]);
 
   const getTodayOrders = () => orders.filter((o: any) => {
     const orderDate = new Date(o.createdAt).toDateString();
@@ -221,11 +450,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider
       value={{
-        orders, products, users, categories, orderCounter: orders.length + 1,
-        fetchUsers, // ✨ Exposto para a UsersPage
-        addOrder, updateOrder, moveOrder, deleteOrder, payOrder,
-        addProduct, updateProduct, deleteProduct, addCategory, updateCategory, deleteCategory, addUser, deleteUser,
-        getTodayOrders, getArchivedOrders
+        orders,
+        products,
+        users,
+        categories,
+        orderCounter: orders.length + 1,
+        fetchUsers,
+        addOrder,
+        updateOrder,
+        addItemsToOrder,
+        moveOrder,
+        deleteOrder,
+        payOrder,
+        addProduct,
+        updateProduct,
+        deleteProduct,
+        addCategory,
+        updateCategory,
+        deleteCategory,
+        addUser,
+        deleteUser,
+        getTodayOrders,
+        getArchivedOrders,
       }}
     >
       {children}

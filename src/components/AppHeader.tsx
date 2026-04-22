@@ -9,7 +9,7 @@ const navItems = [
   { to: '/products' as const, label: 'Produtos', icon: Package },
   { to: '/users' as const, label: 'Usuários', icon: Users },
   { to: '/reports' as const, label: 'Relatórios & Arquivados', icon: BarChart3 },
-  { to: '/cash-register' as const, label: 'Fechamento de Caixa', icon: Wallet },
+  { to: '/cash-register' as const, label: 'Controle de Caixa', icon: Wallet },
 ];
 
 // 👇 Logo Corrigida (Caixa mais larga para não cortar o texto) 👇
