@@ -3,6 +3,7 @@ import { useAppStore } from '@/lib/store';
 import type { OrderItem } from '@/lib/types';
 import { toast } from 'sonner';
 import { X, Search, Plus, Minus, ArrowLeft, ShoppingBag, Info } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
 
 interface NewOrderModalProps {
   open: boolean;
@@ -26,6 +27,8 @@ export function NewOrderModal({
   appendBaseNotes,
 }: NewOrderModalProps) {
   const { products, categories, addOrder, updateOrder, addItemsToOrder } = useAppStore();
+  const { user } = useAuth();
+
 
   const [customerName, setCustomerName] = useState('');
   const [notes, setNotes] = useState('');
@@ -141,7 +144,7 @@ export function NewOrderModal({
       } else if (editOrderId) {
         await updateOrder(editOrderId, customerName.trim(), cartItems, finalNotes);
       } else {
-        await addOrder(customerName.trim(), cartItems, finalNotes);
+        await addOrder(customerName.trim(), cartItems, finalNotes, user?.name || user?.username || 'Operador');      
       }
 
       onClose();

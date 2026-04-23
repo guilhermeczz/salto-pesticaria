@@ -9,9 +9,9 @@ interface AppState {
   users: User[];
   categories: Category[];
   orderCounter: number;
+  fetchData: () => Promise<void>;
   fetchUsers: () => Promise<void>;
-  addOrder: (customerName: string, items: OrderItem[], notes?: string) => Promise<void>;
-  updateOrder: (orderId: string, customerName: string, items: OrderItem[], notes?: string) => Promise<void>;
+  addOrder: (customerName: string, items: OrderItem[], notes?: string, createdBy?: string) => Promise<void>;  updateOrder: (orderId: string, customerName: string, items: OrderItem[], notes?: string) => Promise<void>;
   addItemsToOrder: (orderId: string, customerName: string, items: OrderItem[], batchNotes?: string) => Promise<void>;
   moveOrder: (orderId: string, newStatus: OrderStatus) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
@@ -226,52 +226,49 @@ useEffect(() => {
   };
 }, [fetchData]);
 
-  const addOrder = useCallback(async (customerName: string, items: OrderItem[], notes: string = '') => {
-    const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+const addOrder = useCallback(async (
+  customerName: string,
+  items: OrderItem[],
+  notes: string = '',
+  createdBy?: string
+) => {
+  const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const safeCreatedBy = String(createdBy || '').trim() || 'Operador';
 
-    const createdBy =
-      user?.user_metadata?.full_name ||
-      user?.user_metadata?.username ||
-      user?.email?.split('@')[0] ||
-      'Operador';
+  const { data: order, error } = await supabase
+    .from('pedidos')
+    .insert([{
+      cliente_nome: customerName,
+      valor_total: total,
+      status: 'new',
+      observacao: notes,
+      created_by: safeCreatedBy,
+    }])
+    .select()
+    .single();
 
-    const { data: order, error } = await supabase
-      .from('pedidos')
-      .insert([{
-        cliente_nome: customerName,
-        valor_total: total,
-        status: 'new',
-        observacao: notes,
-        created_by: createdBy,
-      }])
-      .select()
-      .single();
+  if (error) throw error;
 
-    if (error) throw error;
+  const batchId = makeBatchId();
+  const now = new Date().toISOString();
 
-    const batchId = makeBatchId();
-    const now = new Date().toISOString();
+  const itemsToInsert = items.map(item => ({
+    pedido_id: order.id,
+    produto_nome: item.productName,
+    quantidade: item.quantity,
+    preco_unitario: item.unitPrice,
+    lote_id: batchId,
+    lote_observacao: notes,
+    created_at: now,
+  }));
 
-    const itemsToInsert = items.map(item => ({
-      pedido_id: order.id,
-      produto_nome: item.productName,
-      quantidade: item.quantity,
-      preco_unitario: item.unitPrice,
-      lote_id: batchId,
-      lote_observacao: notes,
-      created_at: now,
-    }));
+  const { error: itemsError } = await supabase.from('pedido_itens').insert(itemsToInsert);
+  if (itemsError) throw itemsError;
 
-    const { error: itemsError } = await supabase.from('pedido_itens').insert(itemsToInsert);
-    if (itemsError) throw itemsError;
-
-    await fetchData();
-    toast.success('Pedido realizado!');
-  }, [fetchData]);
+  await fetchData();
+  toast.success('Pedido realizado!');
+}, [fetchData]);
 
   const updateOrder = useCallback(async (orderId: string, customerName: string, items: OrderItem[], notes: string = '') => {
     const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
@@ -522,6 +519,7 @@ useEffect(() => {
         categories,
         orderCounter: orders.length + 1,
         fetchUsers,
+        fetchData,
         addOrder,
         updateOrder,
         addItemsToOrder,

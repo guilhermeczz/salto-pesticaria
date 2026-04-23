@@ -56,7 +56,7 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
   const store = useAppStore();
   const todayOrders = store.getTodayOrders?.() ?? [];
   const deleteOrder = store.deleteOrder ?? (() => {});
-  const { moveOrder, payOrder, orders } = useAppStore();
+  const { moveOrder, payOrder, orders, fetchData } = useAppStore();
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [payTarget, setPayTarget] = useState<Order | null>(null);
@@ -99,6 +99,15 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
 
     fetchOpenSession();
   }, [cashTarget, payTarget]);
+
+  
+useEffect(() => {
+  const interval = setInterval(() => {
+    fetchData();
+  }, 2000);
+
+  return () => clearInterval(interval);
+}, [fetchData]);
 
   const filteredOrders = useMemo(() => {
     const q = removerAcentos(searchTerm.trim().toLowerCase());
