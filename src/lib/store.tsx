@@ -16,10 +16,11 @@ interface AppState {
   moveOrder: (orderId: string, newStatus: OrderStatus) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
   payOrder: (
-  orderId: string,
-  paymentMethod: PaymentMethod,
-  extra?: { amountReceived?: number | null; changeGiven?: number | null }
-) => Promise<void>;  addProduct: (product: Omit<Product, 'id'>) => Promise<boolean>;
+    orderId: string,
+    paymentMethod: PaymentMethod,
+    extra?: { amountReceived?: number | null; changeGiven?: number | null }
+  ) => Promise<void>;
+  addProduct: (product: Omit<Product, 'id'>) => Promise<boolean>;
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   addUser: (user: Omit<User, 'id'>) => Promise<boolean>;
@@ -109,9 +110,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
               batchNotes: item.lote_observacao || '',
               createdAt: item.created_at ? new Date(item.created_at) : new Date(o.created_at),
             }))
-            .sort((a: OrderItem, b: OrderItem) =>
-  new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
-);
+            .sort(
+              (a: OrderItem, b: OrderItem) =>
+                new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+            );
 
           const groupedByBatch = mappedItems.reduce<Record<string, OrderItem[]>>((acc, item) => {
             const key = item.batchId || `legacy_${o.id}`;
@@ -139,25 +141,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
           itemBatches = itemBatches.map((batch, index) => ({
             ...batch,
             isAdditional: index > 0,
-            notes: batch.notes || (index === 0 ? (o.observacao || '') : ''),
+            notes: batch.notes || (index === 0 ? o.observacao || '' : ''),
           }));
 
           return {
-          id: String(o.id),
-          number: o.id,
-          customerName: o.cliente_nome,
-          total: Number(o.valor_total),
-          status: o.status as OrderStatus,
-          paid: o.pago,
-          paymentMethod: o.forma_pagamento as PaymentMethod,
-          notes: o.observacao,
-          createdAt: new Date(o.created_at),
-          items: mappedItems,
-          itemBatches,
-          paidAt: o.paid_at ? new Date(o.paid_at) : undefined,
-          cashSessionId: o.cash_session_id ?? null,
-          amountReceived: o.amount_received != null ? Number(o.amount_received) : null,
-          changeGiven: o.change_given != null ? Number(o.change_given) : null,
+            id: String(o.id),
+            number: o.id,
+            customerName: o.cliente_nome,
+            total: Number(o.valor_total),
+            status: o.status as OrderStatus,
+            paid: o.pago,
+            paymentMethod: o.forma_pagamento as PaymentMethod,
+            notes: o.observacao,
+            createdAt: new Date(o.created_at),
+            items: mappedItems,
+            itemBatches,
+            paidAt: o.paid_at ? new Date(o.paid_at) : undefined,
+            cashSessionId: o.cash_session_id ?? null,
+            amountReceived: o.amount_received != null ? Number(o.amount_received) : null,
+            changeGiven: o.change_given != null ? Number(o.change_given) : null,
+            createdBy: o.created_by ?? null,
           };
         });
 
@@ -172,8 +175,69 @@ export function AppProvider({ children }: { children: ReactNode }) {
     fetchData();
   }, [fetchData]);
 
+useEffect(() => {
+  let isMounted = true;
+
+  const setupRealtime = async () => {
+    const existingChannels = supabase.getChannels();
+    for (const channel of existingChannels) {
+      if (
+        channel.topic === 'realtime:pedidos-sync' ||
+        channel.topic.includes('pedidos-sync')
+      ) {
+        await supabase.removeChannel(channel);
+      }
+    }
+
+    const channel = supabase
+      .channel(`pedidos-sync-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pedidos' },
+        async () => {
+          if (isMounted) await fetchData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pedido_itens' },
+        async () => {
+          if (isMounted) await fetchData();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Realtime pedidos:', status);
+      });
+
+    return channel;
+  };
+
+  let activeChannel: any = null;
+
+  setupRealtime().then((channel) => {
+    activeChannel = channel;
+  });
+
+  return () => {
+    isMounted = false;
+    if (activeChannel) {
+      supabase.removeChannel(activeChannel);
+    }
+  };
+}, [fetchData]);
+
   const addOrder = useCallback(async (customerName: string, items: OrderItem[], notes: string = '') => {
     const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const createdBy =
+      user?.user_metadata?.full_name ||
+      user?.user_metadata?.username ||
+      user?.email?.split('@')[0] ||
+      'Operador';
 
     const { data: order, error } = await supabase
       .from('pedidos')
@@ -182,6 +246,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         valor_total: total,
         status: 'new',
         observacao: notes,
+        created_by: createdBy,
       }])
       .select()
       .single();
@@ -295,61 +360,62 @@ export function AppProvider({ children }: { children: ReactNode }) {
     fetchData();
   }, [fetchData]);
 
-const payOrder = useCallback(
-  async (
-    orderId: string,
-    paymentMethod: PaymentMethod,
-    extra?: { amountReceived?: number | null; changeGiven?: number | null }
-  ) => {
-    const { data: openSession, error: sessionError } = await supabase
-      .from('cash_sessions')
-      .select('id')
-      .eq('status', 'open')
-      .order('id', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const payOrder = useCallback(
+    async (
+      orderId: string,
+      paymentMethod: PaymentMethod,
+      extra?: { amountReceived?: number | null; changeGiven?: number | null }
+    ) => {
+      const { data: openSession, error: sessionError } = await supabase
+        .from('cash_sessions')
+        .select('id')
+        .eq('status', 'open')
+        .order('id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (sessionError) {
-      console.error('Erro ao buscar caixa aberto:', sessionError);
-      toast.error('Erro ao validar o caixa aberto.');
-      return;
-    }
+      if (sessionError) {
+        console.error('Erro ao buscar caixa aberto:', sessionError);
+        toast.error('Erro ao validar o caixa aberto.');
+        return;
+      }
 
-    if (!openSession) {
-      toast.error('Abra o caixa antes de registrar pagamentos.');
-      return;
-    }
+      if (!openSession) {
+        toast.error('Abra o caixa antes de registrar pagamentos.');
+        return;
+      }
 
-    const payload: any = {
-      status: 'paid',
-      pago: true,
-      forma_pagamento: paymentMethod,
-      paid_at: new Date().toISOString(),
-      cash_session_id: openSession.id,
-    };
+      const payload: any = {
+        status: 'paid',
+        pago: true,
+        forma_pagamento: paymentMethod,
+        paid_at: new Date().toISOString(),
+        cash_session_id: openSession.id,
+      };
 
-    if (paymentMethod === 'dinheiro') {
-      payload.amount_received =
-        extra?.amountReceived != null ? Number(extra.amountReceived) : null;
-      payload.change_given =
-        extra?.changeGiven != null ? Number(extra.changeGiven) : null;
-    } else {
-      payload.amount_received = null;
-      payload.change_given = null;
-    }
+      if (paymentMethod === 'dinheiro') {
+        payload.amount_received =
+          extra?.amountReceived != null ? Number(extra.amountReceived) : null;
+        payload.change_given =
+          extra?.changeGiven != null ? Number(extra.changeGiven) : null;
+      } else {
+        payload.amount_received = null;
+        payload.change_given = null;
+      }
 
-    const { error } = await supabase.from('pedidos').update(payload).eq('id', orderId);
+      const { error } = await supabase.from('pedidos').update(payload).eq('id', orderId);
 
-    if (error) {
-      console.error('Erro ao registrar pagamento:', error);
-      toast.error('Erro ao registrar pagamento.');
-      return;
-    }
+      if (error) {
+        console.error('Erro ao registrar pagamento:', error);
+        toast.error('Erro ao registrar pagamento.');
+        return;
+      }
 
-    fetchData();
-  },
-  [fetchData]
-);
+      fetchData();
+    },
+    [fetchData]
+  );
+
   const addProduct = useCallback(async (product: Omit<Product, 'id'>) => {
     const { error } = await supabase.from('produtos').insert([{
       nome: product.name,
@@ -415,24 +481,24 @@ const payOrder = useCallback(
     return true;
   }, [fetchUsers]);
 
- const deleteUser = useCallback(async (id: string) => {
-  const targetUser = users.find((u) => u.id === id);
+  const deleteUser = useCallback(async (id: string) => {
+    const targetUser = users.find((u) => u.id === id);
 
-  const isProtected =
-    targetUser &&
-    (
-      String(targetUser.name || '').trim().toLowerCase() === 'desenvolvedor' ||
-      String(targetUser.username || '').trim().toLowerCase() === 'dev'
-    );
+    const isProtected =
+      targetUser &&
+      (
+        String(targetUser.name || '').trim().toLowerCase() === 'desenvolvedor' ||
+        String(targetUser.username || '').trim().toLowerCase() === 'dev'
+      );
 
-  if (isProtected) {
-    toast.error('O acesso do Desenvolvedor é protegido e não pode ser removido.');
-    return;
-  }
+    if (isProtected) {
+      toast.error('O acesso do Desenvolvedor é protegido e não pode ser removido.');
+      return;
+    }
 
-  await supabase.from('usuarios').delete().eq('id', id);
-  fetchUsers();
-}, [fetchUsers, users]);
+    await supabase.from('usuarios').delete().eq('id', id);
+    fetchUsers();
+  }, [fetchUsers, users]);
 
   const getTodayOrders = () => orders.filter((o: any) => {
     const orderDate = new Date(o.createdAt).toDateString();

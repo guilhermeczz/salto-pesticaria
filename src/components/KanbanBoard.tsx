@@ -612,8 +612,8 @@ export function KanbanBoard({ onEditOrder }: { onEditOrder?: (order: Order) => v
 
               <button
                 disabled={!canConfirmCashPayment}
-                onClick={() => {
-                  payOrder(cashTarget.id, 'dinheiro', {
+                onClick={async () => {
+                  await payOrder(cashTarget.id, 'dinheiro', {
                     amountReceived: cashReceivedValue,
                     changeGiven: cashChange,
                   });
@@ -673,6 +673,14 @@ function OrderCard({
         <div className="mb-2">
           <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${badgeColor}`}>
             {tipo}
+          </span>
+        </div>
+      )}
+
+      {order.createdBy && (
+        <div className="mb-2">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-border bg-muted text-muted-foreground">
+            por {order.createdBy}
           </span>
         </div>
       )}

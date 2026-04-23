@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
       const cleanUsername = username.toLowerCase().trim();
-      const email = `${cleanUsername}@gardens.com`;
+      const email = `${cleanUsername}@salto.com`;
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const cleanUsername = username.toLowerCase().trim();
       // Usamos um e-mail falso padrão para facilitar o login só com username
-      const email = `${cleanUsername}@gardens.com`; 
+      const email = `${cleanUsername}@salto.com`; 
       
       // 1. Salva no cofre de autenticação (auth.users)
       const { data, error } = await supabase.auth.signUp({

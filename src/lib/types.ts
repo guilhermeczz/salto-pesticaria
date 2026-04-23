@@ -36,6 +36,7 @@ export interface Order {
   cashSessionId?: number | null;
   amountReceived?: number | null;
   changeGiven?: number | null;
+  createdBy?: string | null;
 }
 
 export interface Category {
