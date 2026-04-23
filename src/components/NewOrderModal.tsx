@@ -40,31 +40,31 @@ export function NewOrderModal({
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
+useEffect(() => {
+  if (!open) return;
 
-    setCustomerName(initialCustomerName ?? '');
+  setCustomerName(initialCustomerName ?? '');
 
-    const sourceNotes = appendOrderId ? appendBaseNotes ?? '' : initialNotes ?? '';
-    let parsedNotes = appendOrderId ? '' : initialNotes ?? '';
-    let parsedType: 'Local' | 'Delivery' | 'Retirada' | '' = '';
+  const sourceNotes = appendOrderId ? appendBaseNotes ?? '' : initialNotes ?? '';
+  let parsedNotes = appendOrderId ? '' : initialNotes ?? '';
+  let parsedType: 'Local' | 'Delivery' | 'Retirada' | '' = '';
 
-    if (sourceNotes.includes('[LOCAL]')) parsedType = 'Local';
-    else if (sourceNotes.includes('[DELIVERY]')) parsedType = 'Delivery';
-    else if (sourceNotes.includes('[RETIRADA]')) parsedType = 'Retirada';
+  if (sourceNotes.includes('[LOCAL]')) parsedType = 'Local';
+  else if (sourceNotes.includes('[DELIVERY]')) parsedType = 'Delivery';
+  else if (sourceNotes.includes('[RETIRADA]')) parsedType = 'Retirada';
 
-    if (!appendOrderId) {
-      if (parsedNotes.includes('[LOCAL]')) parsedNotes = parsedNotes.replace('[LOCAL]', '').trim();
-      else if (parsedNotes.includes('[DELIVERY]')) parsedNotes = parsedNotes.replace('[DELIVERY]', '').trim();
-      else if (parsedNotes.includes('[RETIRADA]')) parsedNotes = parsedNotes.replace('[RETIRADA]', '').trim();
-    }
+  if (!appendOrderId) {
+    if (parsedNotes.includes('[LOCAL]')) parsedNotes = parsedNotes.replace('[LOCAL]', '').trim();
+    else if (parsedNotes.includes('[DELIVERY]')) parsedNotes = parsedNotes.replace('[DELIVERY]', '').trim();
+    else if (parsedNotes.includes('[RETIRADA]')) parsedNotes = parsedNotes.replace('[RETIRADA]', '').trim();
+  }
 
-    setNotes(parsedNotes);
-    setOrderType(parsedType);
-    setCart(appendOrderId ? {} : initialCart ?? {});
-    setSearch('');
-    setShowSummary(false);
-  }, [open, initialCustomerName, initialNotes, initialCart, appendOrderId, appendBaseNotes]);
+  setNotes(parsedNotes);
+  setOrderType(parsedType);
+  setCart(appendOrderId ? {} : initialCart ?? {});
+  setSearch('');
+  setShowSummary(false);
+}, [open, editOrderId, appendOrderId]);
 
   useEffect(() => {
     if (scrollRef.current) {

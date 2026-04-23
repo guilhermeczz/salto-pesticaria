@@ -37,32 +37,22 @@ function DashboardPage() {
   const [editOrder, setEditOrder] = useState<Order | null>(null);
 
 
+const EMPTY_CART: Record<string, number> = {};
+const initialCart = useMemo(() => {
+  if (!editOrder) return EMPTY_CART;
 
-  const initialCart = useMemo(() => {
+  const cart: Record<string, number> = {};
+  editOrder.items.forEach(item => {
+    if (item.productId && products.some(p => p.id === item.productId)) {
+      cart[item.productId] = item.quantity;
+    } else {
+      const fallback = products.find(p => p.name === item.productName);
+      if (fallback) cart[fallback.id] = item.quantity;
+    }
+  });
 
-    if (!editOrder) return {};
-
-    const cart: Record<string, number> = {};
-
-    editOrder.items.forEach(item => {
-
-      if (item.productId && products.some(p => p.id === item.productId)) {
-
-        cart[item.productId] = item.quantity;
-
-      } else {
-
-        const fallback = products.find(p => p.name === item.productName);
-
-        if (fallback) cart[fallback.id] = item.quantity;
-
-      }
-
-    });
-
-    return cart;
-
-  }, [editOrder, products]);
+  return cart;
+}, [editOrder, products]);
 
 
 
